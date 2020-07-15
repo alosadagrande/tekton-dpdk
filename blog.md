@@ -3,7 +3,9 @@
 
 You've probably heard about 5G and edge computing and the potential to change the world and affect our lives. This new technology will support billions of devices with almost no latency at speeds around 20 times faster than its predecessor. Now, think about Internet of Things (IoT), Telemedicine, Augmented and Virtual Reality, Autonomous Cars, Faster Gaming finally being real... apologies for interrupting, but let's put aside for a moment our imagination and dig into the technology required to fulfill our dreams. 
 
-All of these technologies and applications often demand very high performance requirements for both throughput, latency, and cycles-per-packet (a measure of transmission "efficiency"). This means that a compilation of multiple features are required to allow efficient utilization of the underlying platform capabilities when deploying deterministic applications. Some examples of these required network features are Multus, SR-IOV and DPDK. They are elements of what is called Containerized Network Functions (CNFs).
+All of these technologies and applications often demand very high performance requirements for both throughput, latency, and cycles-per-packet (a measure of transmission "efficiency"). This means that a compilation of multiple features are required to allow efficient utilization of the underlying platform capabilities when deploying deterministic applications. Some examples of these required network features are Multus, SR-IOV and DPDK. They are elements of what is called Containerized Network Functions or Cloud native Network Functions (CNFs).
+
+### Containerized Network Functions
 
 Before talking about CNFs, it is important to first understand Network Functions Virtualization (NFV). NFV replaces network hardware appliances with software, including virtual network functions (VNFs), that runs on virtual machines (VMs) running on commodity hardware. CNFs are like VNFs, but they run on lighter-weight containers on top of Kubernetes, providing greater agility and ease of deployment compared with VMs. While VNFs are software forms of network appliances such as routers, firewalls, load-balancers, etc. deployed as one or more VMs, CNFs are just the containerized network functions, which increases portability—not the entire OS. 
 
@@ -21,7 +23,11 @@ To run as shown in this diagram below. Using the User space thanks to DPDK libra
 
 ![Networking using DPDK libraries](./content/kernel-user-space.png)
 
-In OpenShift 4.5, as Technology Preview, it is possible to use DPDK libraries and attach the network interface directly to the POD (SR-IOV virtual function). Therefore, DPDK will be skipping the use of the Kernel space in both the POD and the Worker node Operating System. In this blog post we are going to show how to leverage Red Hat's DPDK builder image available from Red Hat's official registry (registry.redhat.io/openshift4/dpdk-base-rhel8) to build applications powered by DPDK. In this task, an automated process (pipeline) driven by Cloud-native CI/CD on OpenShift called OpenShift Pipelines will assist us.
+In OpenShift 4.5, as Technology Preview, it is possible to use DPDK libraries and attach the network interface directly to the POD (SR-IOV virtual function). Therefore, DPDK will be skipping the use of the Kernel space in both the POD and the Worker node Operating System. 
+
+## Scenario
+
+In this blog post we are going to show how to leverage Red Hat's DPDK builder image available from Red Hat's official registry (registry.redhat.io/openshift4/dpdk-base-rhel8) to build applications powered by DPDK. In this task, an automated process (pipeline) driven by Cloud-native CI/CD on OpenShift called OpenShift Pipelines will assist us.
 
 
 ## Environment
@@ -29,16 +35,17 @@ In OpenShift 4.5, as Technology Preview, it is possible to use DPDK libraries an
 * An OpenShift Container Platform 4.5 cluster
 * [OpenShift Pipelines](https://www.openshift.com/learn/topics/pipelines) based on [Tekton](https://tekton.dev/) instellad as the CI/CD tool. It is available to install from OpenShift's OperatorHub.
 * Demo files:
-  ** [Demo Repository](https://github.com/alosadagrande/tekton-dpdk)
-  ** Tekton Files
+  * [Demo Repository](https://github.com/alosadagrande/tekton-dpdk)
+  * Tekton Files
 
 Whether you are going to also deploy the built application, you will require at least:
+
+**NOTE:** If you do not have an SR-IOV supported device, you still can run the OpenShift pipeline and build the example DPDK application. 
 
 * A SR-IOV capable Node inside the OpenShift cluster. In our case we have a worker Node with several Mellanox MT27800 Family [ConnectX-5] 25GbE dual-port SFP28 Network Interface Cards (NICs). Take a look at [this table](https://docs.openshift.com/container-platform/4.5/networking/hardware_networks/about-sriov.html) with all the supported SR-IOV NIC models.
 * [SR-IOV Nework operator](https://docs.openshift.com/container-platform/4.5/networking/hardware_networks/installing-sriov-operator.html) must be installed and running successfully. SR-IOV devices must be properly detected and configured.
 * DPDK requires huge pages to be configured within the Node where the application is deployed. A detailed procedure can be found in [Configuring huge pages](https://docs.openshift.com/container-platform/4.5/scalability_and_performance/what-huge-pages-do-and-how-they-are-consumed-by-apps.html).
 
-**NOTE:** If you do not have an SR-IOV supported device, you still can run the OpenShift pipeline and build the example DPDK application. 
 
 ## Scenario
 
