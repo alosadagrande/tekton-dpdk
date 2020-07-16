@@ -27,19 +27,18 @@ In OpenShift 4.5, as Technology Preview, it is possible to use DPDK libraries an
 
 ## Scenario
 
-In this blog post we are going to show how to leverage Red Hat's [DPDK builder image](egistry.redhat.io/openshift4/dpdk-base-rhel8) available from Red Hat's official registry to build applications powered by DPDK. In this task, an automated process (pipeline) driven by Cloud-native CI/CD on OpenShift called OpenShift Pipelines will assist us.
+In this blog post we are going to show how to leverage Red Hat's [DPDK builder image](registry.redhat.io/openshift4/dpdk-base-rhel8) available from Red Hat's official registry to build applications powered by DPDK. In this task, an automated process (pipeline) driven by Cloud-native CI/CD on OpenShift called OpenShift Pipelines will assist us. The goal is to create a pipeline that allow us to build and deploy a DPDK application. In this example, we are going to install [testPMD](https://doc.dpdk.org/guides/testpmd_app_ug/), which is an application that can be used to test the DPDK in a packet forwarding mode and also to access NIC hardware features such as Flow Director. 
 
-This repository contains information on how to build a DPDK application using [OpenShift Pipelines](https://www.openshift.com/learn/topics/pipelines) based on [Tekton](https://tekton.dev/). The target is to create a pipeline that allow us to build and deploy a DPDK application. In this example, we are going to install [testPMD](https://doc.dpdk.org/guides/testpmd_app_ug/), which is an application that can be used to test the DPDK in a packet forwarding mode and also to access NIC hardware features such as Flow Director. [Pktgen](https://pktgen-dpdk.readthedocs.io/en/latest/) is another example of a DPDK application that can be build.
+> :exclamation: In this case testPMD serves as an example of how to build a more fully-featured application using the DPDK base image.
 
-> :exclamation: In this case testPMD serves as an example of how to build a more fully-featured application using the DPDK SDK.
 
-Finally, we are going to create two pipelines to deploy testPMD on **upstream** and **downstream** DPDK base images.
+PIPELINE DIAGRAM TO BE CREATED 
 
 
 ## Environment
 
 * An OpenShift Container Platform 4.5 cluster
-* [OpenShift Pipelines](https://www.openshift.com/learn/topics/pipelines) based on [Tekton](https://tekton.dev/) instellad as the CI/CD tool. It is available to install from OpenShift's OperatorHub.
+* [OpenShift Pipelines](https://www.openshift.com/learn/topics/pipelines) based on [Tekton](https://tekton.dev/) installed as the CI/CD tool. OpenShift Pipelines Operator v1.0.1 is available to install from OpenShift's OperatorHub.
 * Demo files:
   * [Demo Repository](https://github.com/alosadagrande/tekton-dpdk)
   * Tekton Files
@@ -53,62 +52,59 @@ Whether you are going to also deploy the built application, you need to be aware
 * Huge pages must be configured within the Node where the application is deployed. A detailed procedure can be found in [Configuring huge pages](https://docs.openshift.com/container-platform/4.5/scalability_and_performance/what-huge-pages-do-and-how-they-are-consumed-by-apps.html).
 
 
-## 1. Requirements
+## Pipeline creation
 
-
-- A SR-IOV capable server
-- SR-IOV network operator must be installed and running successfully. SR-IOV devices must be proper detected
-
-Information on how to deploy SR-IOV operator on OpenShift can be found in [field_enablement folder](https://gitlab.cee.redhat.com/sysdeseng/cnf-integration/-/tree/master/field_enablement/sriov) in this same repository
-
-More detailed information on how to set up SR-IOV devices can be found in the [performance-operatos-lab](https://performance-operators-lab.readthedocs.io/en/latest/#sr-iov-operator)
-
-
-## 2. Build a DPDK application
-
-Two pipelines to deploy testPMD are going to be created:
-
-1. This pipeline is based on the **downstream** DPDK base image which is running DPDK version 18.11.2 by default. This [DPDK RHEL8 base image](https://catalog.redhat.com/software/containers/openshift4/dpdk-base-rhel8/5e32be6cdd19c77896004a41?container-tabs=overview) is already built and maintained by Red Hat and based on UBI 8.
-
-> :exclamation: The [Dockerfile](https://catalog.redhat.com/software/containers/openshift4/dpdk-base-rhel8/5e32be6cdd19c77896004a41?container-tabs=dockerfile) published can be modified to run DPDK version 19.x by replacing DPDK_VER env.
-
-2. This second pipeline is based on the **upstream** effort to deploy testPMD on top of a CentOS 7 base image. In the [cnf-features-deploy](https://github.com/openshift-kni/cnf-features-deploy/tree/master/tools/s2i-dpdk) repository can be found detailed information. This pipeline requires to build testPMD image from a [Dockerfile](https://github.com/openshift-kni/cnf-features-deploy/blob/master/tools/s2i-dpdk/Dockerfile)
-
-### 2.1. DPDK RHEL 8 base image
-
-Since we already have a base image with DPDK installed, we are just going to deploy testPMD on top of it using the **S2i** feature. Tekton comes with default with a bunch of clusterTasks predefined. One of them is the S2i Task.
-
-First, let's create the imageStream where the built image will be managed.
+OpenShift Pipelines is a powerful tool for building continuous delivery pipelines using modern infrastructure. The core component runs as a controller in a Kubernetes cluster. It registers several custom resource definitions (CRDs) which represent the basic Tekton objects with the Kubernetes API server, so the cluster knows to delegate requests containing those objects to Tekton. These primitives are fundamental to the way Tekton works, once you have OpenShift Pipelines Operator installed you can list them:
 
 ```sh
-$ oc create -f is-ds.yaml 
-imagestream.image.openshift.io/rhel8-dpdk-app created
+oc get crd | grep tekton | awk '{print $1}'
+clustertasks.tekton.dev
+clustertriggerbindings.triggers.tekton.dev
+conditions.tekton.dev
+config.operator.tekton.dev
+eventlisteners.triggers.tekton.dev
+pipelineresources.tekton.dev
+pipelineruns.tekton.dev
+pipelines.tekton.dev
+taskruns.tekton.dev
+tasks.tekton.dev
+triggerbindings.triggers.tekton.dev
+triggertemplates.triggers.tekton.dev
 ```
 
-Next, create the deploymentConfig of our application. In this case we are going to disable the automatic rollout when there is a new image pushed to the application's imageStream because we want our pipeline to do that:
+**NOTE:** If you are new to OpenShift Pipelines and Tekton, you can start by reading the following articles published in the OpenShift blog: [Cloud-Native CI/CD with OpenShift Pipelines](https://www.openshift.com/blog/cloud-native-ci-cd-with-openshift-pipelines) , [OpenShift Pipelines Now Available as Technology Preview](https://www.openshift.com/blog/openshift-pipelines-tech-preview-blog) and [OpenShift Pipelines Tutorial using Tekton](https://www.openshift.com/blog/pipelines_with_tekton) among others.
+
+Now, it is time to create our OpenShift pipeline which will be in charge of:
+
+* Pulling the DPDK base image from Red Hat's registry.
+* Pulling testPMD application code and source-to-image (s2i) scripts from a Git repository. Those scripts describes how our application must be built. 
+* Push the output image of this process into our OpenShift internal registry.
+* Deploy the new version of the application into the proper OpenShift project.
+
+**NOTE:** At the time of writing DPDK base image is running DPDK version 18.11.2. This [DPDK RHEL8 base image](https://catalog.redhat.com/software/containers/openshift4/dpdk-base-rhel8/5e32be6cdd19c77896004a41?container-tabs=overview) is built and maintained by Red Hat and based on the [Universal Base Image 8](https://access.redhat.com/articles/4238681).
+
+OpenShift Pipelines comes by default with a bunch of clusterTasks predefined, which are similar to Tekton Tasks but with a cluster scope. One of them it will be useful for our purpose: the S2i Task.
+
+First, we are going to create a new project called `dpdk-build-testpmd` in our building cluster:
+
+```sh
+ oc new-project dpdk-build-testpmd
+Now using project "dpdk-build-testpmd" on server "https://api.cnf20.cloud.lab.eng.bos.redhat.com:6443".
+```
 
 ```sh
 $ oc create -f pipeline-dpdk/deployment-config-ds.yaml
 deploymentconfig.apps.openshift.io/rhel8-dpdk-testpmd created
 ```
 
-```sh
-$ oc set triggers dc rhel8-dpdk-testpmd
-NAME                                  TYPE    VALUE                                       AUTO
-deploymentconfigs/rhel8-dpdk-testpmd  config                                              true
-deploymentconfigs/rhel8-dpdk-testpmd  image   rhel8-dpdk-app:tekton (rhel8-dpdk-testpmd)  false
-```
-
-Since the Red Hat registry requires authentication to pull the DPDKD base image, a docker-registry secrets needs to be created and assigned to the pipeline serviceAccount:
+Since the Red Hat registry requires authentication to pull the DPDK base image, a docker-registry secrets needs to be created and assigned to the pipeline serviceAccount:
 
 ```sh
 oc create secret docker-registry redhat-registry-secret --docker-server=registry.redhat.io --docker-username=alosadag --docker-password=myP455 
 oc secret link pipeline redhat-registry-secret
 ```
 
-
 Then, it is time install the pipelineResources. Below it is shown the input Git resource where it is defined the repository annd revision of the application. 
-
 
 ```sh
 $ oc create -f pipeline-dpdk/pipeline-resource-git.yaml
@@ -122,7 +118,7 @@ $ oc create -f pipeline-dpdk/pipeline-resource-image-ds.yaml
 pipelineresource.tekton.dev/image-push-rhel8-dpdk-app created
 ```
 
-Finally, the Pipeline is created. It contains the tasks defined and the both the input and output resources. Tasks are basically two: build the testPMD application on top of the DPDK RHEL 8 base image and second deploy the application in the cluster:
+Finally, the Pipeline is created. It contains the tasks defined and both the input and output resources. Tasks are basically two: build the testPMD application on top of the DPDK RHEL 8 base image and second deploy the application in the cluster:
 
 ```sh
 $ oc create -f pipeline-dpdk/pipeline-dpdk-ds.yaml 
@@ -159,6 +155,26 @@ Namespace:   dpdk
  No pipelineruns
 ```
 
+*************
+
+
+First, let's create the imageStream where the built image will be managed.
+
+```sh
+$ oc create -f is-ds.yaml 
+imagestream.image.openshift.io/rhel8-dpdk-app created
+```
+
+Next, create the deploymentConfig of our application. In this case we are going to disable the automatic rollout when there is a new image pushed to the application's imageStream because we want our pipeline to do that:
+
+```sh
+$ oc set triggers dc rhel8-dpdk-testpmd
+NAME                                  TYPE    VALUE                                       AUTO
+deploymentconfigs/rhel8-dpdk-testpmd  config                                              true
+deploymentconfigs/rhel8-dpdk-testpmd  image   rhel8-dpdk-app:tekton (rhel8-dpdk-testpmd)  false
+```
+************************
+
 Now, it is time to run the pipeline. This can be done from the tkn binary, OCP web console or using the [vscode Tekton extension](https://github.com/redhat-developer/vscode-tekton).
 
 ```sh
@@ -166,7 +182,7 @@ $ tkn p start dpdk-ds -r git-cnf-features-deploy=git-cnf-features-deploy -r imag
 Pipelinerun started: dpdk-ds-run-7kg6g
 ```
 
-Pipelin logs can be seen using tkn binary:
+Pipeline logs can be seen using tkn binary:
 
 ```sh
 $ tkn pipelinerun logs dpdk-ds-run-7kg6g -f -n dpdk
@@ -283,149 +299,6 @@ tekton
 ![PipelineRun DPDK RHEL 8](./content/pipelinerun-dpdk-ds.png)
 
 
-### 2.2. DPDK CentOS base image
-
-In this example the testPMD application is going to be built from a CentOS 7 image. This means, that both DPDK and testPMD needs to be installed. In order to do that, our build strategy will be using the following [Dockerfile](https://github.com/openshift-kni/cnf-features-deploy/blob/master/tools/s2i-dpdk/Dockerfile).
-
-> :exclamation: In this case, instead of using the S2i clusterTask we are going to use the buildah clusterTask which will process the Dockerfile, create the container image and push it to the internal OpenShift registry.
-
-
-First, let's create the imageStream where the built image will be managed.
-
-```sh
-$ oc create -f is-us.yaml 
-imagestream.image.openshift.io/centos-dpdk-app created
-```
-
-Next, create the deploymentConfig of our application. In this case we are going to disable the automatic rollout when there is a new image pushed to the application's imageStream because we want our pipeline to do that:
-
-```sh
-$ oc create -f pipeline-dpdk/deployment-config-us.yml 
-deploymentconfig.apps.openshift.io/centos-dpdk-testpmd created
-```
-
-```sh
-$ oc set triggers dc centos-dpdk-testpmd
-NAME                                   TYPE    VALUE                                         AUTO
-deploymentconfigs/centos-dpdk-testpmd  config                                                true
-deploymentconfigs/centos-dpdk-testpmd  image   centos-dpdk-app:tekton (centos-dpdk-testpmd)  false
-```
-
-> :exclamation: pipelineResource pipeline-resource-git.yaml should be already installed if [2.1. DPDK RHEL 8 base image](#21-dpdk-rhel-8-base-image) was followed. Otherwise must be installed.
-
-
-The output resource that indicates where the built image needs to be pushed is created below.
-
-```sh
-$ oc create -f pipeline-dpdk/pipeline-resource-image-us.yaml 
-pipelineresource.tekton.dev/image-push-centos-dpdk-app created
-```
-
-The following resources must be shown in Tekton or at least the previous two described in this section:
-
-```sh
-$ tkn resources list
-NAME                         TYPE    DETAILS
-git-cnf-features-deploy      git     url: https://github.com/openshift-kni/cnf-features-deploy.git
-image-push-centos-dpdk-app   image   url: image-registry.openshift-image-registry.svc:5000/dpdk/centos-dpdk-app:tekton
-image-push-rhel8-dpdk-app    image   url: image-registry.openshift-image-registry.svc:5000/d
-```
-
-Finally create the Pipeline. It contains the tasks defined and both the input and output resources. Tasks are basically two: build the testPMD application on top of a CentOS base image using a Dockerfile strategy and second deploy the application in the cluster:
-
-```sh
-$ oc create -f pipeline-dpdk/pipeline-dpdk-us.yaml 
-pipeline.tekton.dev/dpdk-us created
-```
-
-Here a description of the dpdk-ds Pipeline composed by the two Tasks previously explained:
-
-```sh
-$ tkn pipeline describe dpdk-us
-Name:        dpdk-us
-Namespace:   dpdk
-
-📦 Resources
-
- NAME                           TYPE
- ∙ git-cnf-features-deploy      git
- ∙ image-push-centos-dpdk-app   image
-
-⚓ Params
-
- No params
-
-🗒  Tasks
-
- NAME                TASKREF            RUNAFTER
- ∙ build-dpdk-app    buildah            
- ∙ deploy-dpdk-app   openshift-client   build-dpdk-app
-
-⛩  PipelineRuns
-
- No pipelineruns
-```
-
-Now, it is time to run the pipeline. This can be done from the tkn binary, OCP web console or using the [vscode Tekton extension](https://github.com/redhat-developer/vscode-tekton).
-
-```sh
-$ tkn p start dpdk-us -r git-cnf-features-deploy=git-cnf-features-deploy -r image-push-centos-dpdk-app=image-push-centos-dpdk-app --use-param-defaults
-Pipelinerun started: dpdk-us-run-2bx55
-
-```
-> :warning:  It is possible to take a look at the logs while executing the pipeline. However, take into account that this pipelinerun takes about 25 minutes to complete.
-
-```sh
-$ tkn pipelinerun logs dpdk-us-run-2bx55 -f -n dpdk
-
-[build-dpdk-app : git-source-git-cnf-features-deploy-ws2kr] {"level":"info","ts":1593683304.3594043,"caller":"git/git.go:105","msg":"Successfully cloned https://github.com/openshift-kni/cnf-features-deploy.git @ release-4.4 in path /workspace/source"}
-[build-dpdk-app : git-source-git-cnf-features-deploy-ws2kr] {"level":"warn","ts":1593683304.3596091,"caller":"git/git.go:152","msg":"Unexpected error: creating symlink: symlink /tekton/home/.ssh /root/.ssh: file exists"}
-[build-dpdk-app : git-source-git-cnf-features-deploy-ws2kr] {"level":"info","ts":1593683304.5647552,"caller":"git/git.go:133","msg":"Successfully initialized and updated submodules in path /workspace/source"}
-
-[build-dpdk-app : build] STEP 1: FROM openshift/base-centos7
-[build-dpdk-app : build] Getting image source signatures
-[build-dpdk-app : build] Copying blob sha256:a3ed95caeb02ffe68cdd9fd84406680ae93d633cb16422d00e8a7c22955b46d4
-[build-dpdk-app : build] Copying blob sha256:a3ed95caeb02ffe68cdd9fd84406680ae93d633cb16422d00e8a7c22955b46d4
-[build-dpdk-app : build] Copying blob sha256:a3ed95caeb02ffe68cdd9fd84406680ae93d633cb16422d00e8a7c22955b46d4
-[build-dpdk-app : build] Copying blob sha256:a3ed95caeb02ffe68cdd9fd84406680ae93d633cb16422d00e8a7c22955b46d4
-[build-dpdk-app : build] Copying blob sha256:a3ed95caeb02ffe68cdd9fd84406680ae93d633cb16422d00e8a7c22955b46d4
-[build-dpdk-app : build] Copying blob sha256:45a2e645736c4c66ef34acce2407ded21f7a9b231199d3b92d6c9776df264729
-[build-dpdk-app : build] Copying blob sha256:a3ed95caeb02ffe68cdd9fd84406680ae93d633cb16422d00e8a7c22955b46d4
-[build-dpdk-app : build] Copying blob sha256:a3ed95caeb02ffe68cdd9fd84406680ae93d633cb16422d00e8a7c22955b46d4
-[build-dpdk-app : build] Copying blob sha256:a3ed95caeb02ffe68cdd9fd84406680ae93d633cb16422d00e8a7c22955b46d4
-[build-dpdk-app : build] Copying blob sha256:a3ed95caeb02ffe68cdd9fd84406680ae93d633cb16422d00e8a7c22955b46d4
-[build-dpdk-app : build] Copying blob sha256:a3ed95caeb02ffe68cdd9fd84406680ae93d633cb16422d00e8a7c22955b46d4
-[build-dpdk-app : build] Copying blob sha256:a3ed95caeb02ffe68cdd9fd84406680ae93d633cb16422d00e8a7c22955b46d4
-[build-dpdk-app : build] Copying blob sha256:8a3400b7e31a55323583e3d585b3b0be56d9f7ae563187aec96d47ef5419982a
-[build-dpdk-app : build] Copying blob sha256:78efc9e155c4f5ac3665c4ef14339c305672468520dc0d5ad5a254ce90a1ec28
-[build-dpdk-app : build] Copying blob sha256:734fb161cf896cf5c25a9a857a4b4d267bb5a59d5acf9ba846278ab3f3d1f5d5
-[build-dpdk-app : build] Writing manifest to image destination
-[build-dpdk-app : build] Storing signatures
-....
-```
-
-```sh
-$ tkn pr ls dpdk-us
-NAME                STARTED          DURATION     STATUS
-dpdk-us-run-2bx55   52 minutes ago   41 minutes   Succeeded
-```
-
-Finally, check that the testPMD has been deployed:
-
-```sh
-$ oc get pods -o wide -ldeployment=centos-dpdk-testpmd-1$ 
-
-NAME                          READY   STATUS    RESTARTS   AGE     IP            NODE                                             NOMINATED NODE   READINESS GATES
-centos-dpdk-testpmd-1-w4xfj   1/1     Running   0          9m33s   10.135.0.17   cnf12-worker-0.dev5.kni.lab.eng.bos.redhat.com   <none>           <none>
-
-$ oc rsh centos-dpdk-testpmd-1-w4xfj testpmd -v
-EAL: Detected 80 lcore(s)
-EAL: Detected 2 NUMA nodes
-EAL: RTE Version: 'DPDK 18.11.0'
-EAL: Multi-process socket /var/run/dpdk/rte/mp_socket
-EAL: No free hugepages reported in hugepages-1048576kB
-...
-```
 
 ## Notes
 
