@@ -89,7 +89,7 @@ First, we are going to create a new project called `dpdk-build-testpmd` in our b
 
 ```sh
  oc new-project dpdk-build-testpmd
-Now using project "dpdk-build-testpmd" on server "https://api.cnf20.cloud.lab.eng.bos.redhat.com:6443".
+Now using project "dpdk-build-testpmd" on server "https://api.cnf20.cloud.lab.eng.bos.redhat.com:6443"
 ```
 
 ```sh
