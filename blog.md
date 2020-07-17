@@ -15,11 +15,9 @@ In the OpenShift blog we already presented and "demystified" [Multus](https://ww
 
 ![SR-IOV and Multus diagram](./content/Demystifying-Multus-4.webp)
 
-In this blog post we are going to focus on a Technology Preview feature in OpenShift 4.5 called Data Plane Development Kit (DPDK). [DPDK](https://www.dpdk.org/) is a set of libraries and drivers for Linux and BSD built to accelerate packet processing workloads designed to run on x86, POWER and ARM processors. DPDK offers offloading TCP packet processing from the operating system Kernel space to process them in the User space to obtain a high performant and deterministic system. DPDK libraries offer avoiding as much as possible kernel interrupts by skipping the Kernel space moving from the usual data flow:
+In this blog post we are going to focus on a Technology Preview feature in OpenShift 4.5 called Data Plane Development Kit (DPDK). [DPDK](https://www.dpdk.org/) is a set of libraries and drivers for Linux and BSD built to accelerate packet processing workloads designed to run on x86, POWER and ARM processors. DPDK offers offloading TCP packet processing from the operating system Kernel space to process them in the User space to obtain a high performant and deterministic system. 
 
-![Network and Kernel space](./content/network-kernel-space.png)
-
-To run as shown in this diagram below. Using the User space thanks to DPDK libraries and the DPDK poll mode driver (PMD), who is responsible for the communication between the application and network card, listening in a loop avoiding as much as possible interrupts while forwarding packets.
+DPDK libraries offer avoiding as much as possible kernel interrupts by skipping the Kernel space and  move the User space instead. This is possible thanks to DPDK libraries and the DPDK poll mode driver (PMD), who is responsible for the communication between the application and network card, listening in a loop avoiding as much as possible interrupts while forwarding packets. That can be shown in this diagram below:
 
 ![Networking using DPDK libraries](./content/kernel-user-space.png)
 
