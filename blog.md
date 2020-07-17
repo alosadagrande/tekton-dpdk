@@ -348,6 +348,8 @@ spec:
         resource: cnf10-cluster
 ```
 
+Create the `Pipeline` and verify the status by checking the OpenShift webconsole:
+
 ```sh
 $ oc create -f pipeline-dpdk-testpmd.yaml
 pipeline.tekton.dev/dpdk-build-testpmd created
@@ -355,34 +357,31 @@ pipeline.tekton.dev/dpdk-build-testpmd created
 
 ![Networking using DPDK libraries](./content/ocp-pipeline-norun.png)
 
-
-Here a description of the dpdk-ds Pipeline composed by the two Tasks previously explained:
+Also you can see a pretty good description of the pipeline components using the Tekton CLI (tkn):
 
 ```sh
-$ tkn pipeline describe dpdk-ds
-Name:        dpdk-ds
-Namespace:   dpdk
+$ tkn p describe dpdk-build-testpmd
+Name:        dpdk-build-testpmd
+Namespace:   dpdk-build-testpmd
 
 📦 Resources
 
- NAME                          TYPE
- ∙ git-cnf-features-deploy     git
- ∙ image-push-rhel8-dpdk-app   image
+ NAME                        TYPE
+ ∙ cnf10-cluster             cluster
+ ∙ git-testpmd               git
+ ∙ image-push-quay-testpmd   image
 
 ⚓ Params
 
- NAME           TYPE     DESCRIPTION   DEFAULT VALUE
- ∙ contextDir   string                 tools/s2i-dpdk/test/test-app
- ∙ TLSVERIFY    string                 false
+ No params
 
 🗒  Tasks
 
- NAME                TASKREF            RUNAFTER
- ∙ build-dpdk-app    s2i                
- ∙ deploy-dpdk-app   openshift-client   build-dpdk-app
+ NAME               TASKREF                    RUNAFTER
+ ∙ build-testpmd    s2i                        
+ ∙ deploy-testpmd   openshift-client-cluster   build-testpmd
 
 ⛩  PipelineRuns
-
  No pipelineruns
 ```
 
