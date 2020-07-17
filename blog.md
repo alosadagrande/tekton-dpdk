@@ -387,6 +387,13 @@ Namespace:   dpdk-build-testpmd
 
 ### Pipeline Triggers
 
+At this point we should be able to create a `PipelineRun` and execute our workflow. However, if we want to provide a real continous deployment pipeline we should start automatically the process everytime new code is pushed to the master branch of our testPMD git repository. Pushing to the master branch means that the code is ready to be in production. 
+
+
+/******************** TO BE FINISHED
+
+Tekton Triggers allows users to create resource templates that get instantiated when an event is received. Additionally, fields from event payloads can be injected into these resource templates as runtime information. This enables users to automatically create templated PipelineRun or TaskRun resources when an event is received.
+
 Now, it is time to run the pipeline. This can be done from the tkn binary, OCP web console or using the [vscode Tekton extension](https://github.com/redhat-developer/vscode-tekton).
 
 ```sh
