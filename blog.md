@@ -30,9 +30,17 @@ In this blog post we are going to show how to leverage Red Hat's [DPDK builder i
 > :exclamation: In this case testPMD serves as an example of how to build a more fully-featured application using the DPDK base image.
 
 
-
 PIPELINE DIAGRAM TO BE CREATED 
 
+The pipeline which will be in charge of:
+
+* Starting the pipeline everytime is pushed code into the master branch of the testPMD Git repository.
+* Pulling the DPDK base image from Red Hat's registry.
+* Pulling testPMD application source code and source-to-image (s2i) scripts from a Git repository. Those scripts describe how our application must be built. 
+* Pushing the output image of this process into a public registry such as quay.io. 
+* Deploying the new version of the application into the proper project running in another cluster, the CNF OpenShift cluster.
+
+**NOTE:** At the time of writing DPDK base image is running DPDK version 18.11.2. This [DPDK RHEL8 base image](https://catalog.redhat.com/software/containers/openshift4/dpdk-base-rhel8/5e32be6cdd19c77896004a41?container-tabs=overview) is built and maintained by Red Hat and based on the [Universal Base Image 8](https://access.redhat.com/articles/4238681).
 
 # Environment
 
@@ -52,7 +60,7 @@ Whether you are going to also deploy the built application, you need to be aware
 * Huge pages must be configured within the Node where the application is deployed. A detailed procedure can be found in [Configuring huge pages](https://docs.openshift.com/container-platform/4.5/scalability_and_performance/what-huge-pages-do-and-how-they-are-consumed-by-apps.html).
 
 
-# Pipeline creation
+# OpenShift Pipelines and Tekton
 
 OpenShift Pipelines is a powerful tool for building continuous delivery pipelines using modern infrastructure. The core component runs as a controller in a Kubernetes cluster. It registers several custom resource definitions (CRDs) which represent the basic Tekton objects with the Kubernetes API server, so the cluster knows to delegate requests containing those objects to Tekton. These primitives are fundamental to the way Tekton works, once you have OpenShift Pipelines Operator installed you can list them:
 
@@ -73,18 +81,6 @@ triggertemplates.triggers.tekton.dev
 ```
 
 **NOTE:** If you are new to OpenShift Pipelines and Tekton, you can start by reading the following articles published in the OpenShift blog: [Cloud-Native CI/CD with OpenShift Pipelines](https://www.openshift.com/blog/cloud-native-ci-cd-with-openshift-pipelines) , [OpenShift Pipelines Now Available as Technology Preview](https://www.openshift.com/blog/openshift-pipelines-tech-preview-blog) and [OpenShift Pipelines Tutorial using Tekton](https://www.openshift.com/blog/pipelines_with_tekton) among others.
-
-Now, it is time to create our OpenShift pipeline which will be in charge of:
-
-* Start the pipeline everytime is pushed code into the master branch of the testPMD Git repository.
-* Pulling the DPDK base image from Red Hat's registry.
-* Pulling testPMD application code and source-to-image (s2i) scripts from a Git repository. Those scripts describes how our application must be built. 
-* Push the output image of this process into a public registry such as quay.io. 
-* Deploy the new version of the application into the proper project running in another cluster, the CNF OpenShift cluster.
-
-**NOTE:** At the time of writing DPDK base image is running DPDK version 18.11.2. This [DPDK RHEL8 base image](https://catalog.redhat.com/software/containers/openshift4/dpdk-base-rhel8/5e32be6cdd19c77896004a41?container-tabs=overview) is built and maintained by Red Hat and based on the [Universal Base Image 8](https://access.redhat.com/articles/4238681).
-
-/* OpenShift Pipelines comes by default with a bunch of clusterTasks predefined, which are similar to Tekton Tasks but with a cluster scope. One of them it will be useful for our purpose: the S2i Task. */
 
 
 ## CNF cluster configuration (cnf-10)
@@ -190,28 +186,175 @@ PipelineResources are a set of objects that are used as inputs to a Task and can
 * [Cluster](https://github.com/tektoncd/pipeline/blob/master/docs/resources.md#image-resource). It represents a Kubernetes cluster other than the current cluster where OpenShift Pipelines is running on. It will be used to deploy the newly built testPMD application into the remote CNF OpenShift cluster.
 
 
-Then, it is time install the pipelineResources. Below it is shown the input Git resource where it is defined the repository annd revision of the application. 
+Next, let's install the PipelineResources previously defined. First, the input git resource where we defined the git repository and revision where lives the source code of our application:
+
+```yaml
+apiVersion: tekton.dev/v1alpha1
+kind: PipelineResource
+metadata:
+  name: git-testpmd
+  namespace: dpdk-build-testpmd
+spec:
+  params:
+  - name: url
+    value: https://github.com/alosadagrande/testpmd.git
+  - name: revision
+    value: master
+  type: git
+```
 
 ```sh
 $ oc create -f pipeline-dpdk/pipeline-resource-git.yaml
 pipelineresource.tekton.dev/git-cnf-features-deploy created
 ```
 
-Next, we create the output resource that indicates where the built image needs to be pushed.
+Then, create the output image resource that indicates where the built image is pushed.
 
-```sh
-$ oc create -f pipeline-dpdk/pipeline-resource-image-ds.yaml
-pipelineresource.tekton.dev/image-push-rhel8-dpdk-app created
+```yaml
+cat pipeline-resource-push-image.yaml
+apiVersion: tekton.dev/v1alpha1
+kind: PipelineResource
+metadata:
+  name: image-push-quay-testpmd
+  namespace: dpdk-build-testpmd
+spec:
+  params:
+  - name: url
+    value: quay.io/alosadag/testpmd:tekton
+  type: image
 ```
 
-### Pipeline
-
-Finally, the Pipeline is created. It contains the tasks defined and both the input and output resources. Tasks are basically two: build the testPMD application on top of the DPDK RHEL 8 base image and second deploy the application in the cluster:
+Finally, in order to create the cluster resource we will required the certificate authority data of the cluster and a valid token (robot serviceAccount). The certificate authority can be extracted from your Kube config file and you already has the token.
 
 ```sh
-$ oc create -f pipeline-dpdk/pipeline-dpdk-ds.yaml 
-pipeline.tekton.dev/dpdk-ds created
+$ CADATA=$(cat ~/.kube/config | grep certificate-authority-data | cut -d ":" -f2  | sort -u | tr -d '[:space:]')
 ```
+
+Here it is shown the cluster PipelineResource defnition:
+
+```yaml
+apiVersion: tekton.dev/v1alpha1
+kind: PipelineResource
+metadata:
+  name: cnf10-cluster
+  namespace: dpdk-build-testpmd
+spec:
+  type: cluster
+  params:
+    - name: url
+      value: 'https://api.cnf10.kni.lab.eng.bos.redhat.com:6443' 
+    - name: cadata
+      value: '$CADATA'
+    - name: token
+      value: '$TOKEN'
+  
+```
+
+### Tasks
+
+A Task is a collection of Steps that you define in a specific order as part of your pipeline. OpenShift comes by default with a bunch of clusterTasks predefined, which are similar to Tekton Tasks but with a cluster scope. In our environment the [S2i task](https://github.com/tektoncd/catalog/tree/v1alpha1/s2i) will be very handy to build testPMD application along with DPDK builder image.
+
+Also, we will require a custom task in order to deploy the new image into the CNF cluster. It is based in the [oc client]() ClusterTask and it takes into account the cluster resource definition and values to authenticate in the remote cluster.
+
+```sh
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: openshift-client-cluster
+spec:
+  params:
+  - default: oc $@
+    description: The OpenShift CLI arguments to run
+    name: SCRIPT
+    type: string
+  - default:
+    - help
+    description: The OpenShift CLI arguments to run
+    name: ARGS
+    type: array
+  - name: NAMESPACE
+    description: Name of the project or namespace
+    type: string
+  resources:
+    inputs:
+    - name: cnf10-cluster
+      optional: false 
+      type: cluster
+  steps:
+  - args:
+    - "--kubeconfig"
+    - "/workspace/$(resources.inputs.cnf10-cluster.name)/kubeconfig --context $(resources.inputs.cnf10-cluster.name) -n $(params.NAMESPACE)"
+    - "$(params.ARGS)"
+    image: image-registry.openshift-image-registry.svc:5000/openshift/cli:latest
+    name: oc
+    resources: {}
+    script: $(params.SCRIPT)
+```
+
+Once the Tasks and PipelineResources are defined it is time to create the Pipeline that includes all of them in a single workflow. As you may notice, the three [resources](##PipelineResources) we already talked are defined in the spec field. Also every both build and deploy tasks are configured with the proper parameters:
+
+```yaml
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: dpdk-build-testpmd
+  namespace: dpdk-build-testpmd
+spec:
+  resources:
+  - name: git-testpmd
+    type: git
+  - name: image-push-quay-testpmd
+    type: image
+  - name: cnf10-cluster
+    type: cluster
+  tasks:
+  - name: build-testpmd
+    params:
+    - name: BUILDER_IMAGE
+      value: registry.redhat.io/openshift4/dpdk-base-rhel8
+    - name: PATH_CONTEXT
+      value: .
+    - name: TLSVERIFY
+      value: "false"
+    - name: LOGLEVEL
+      value: "0"
+    resources:
+      inputs:
+      - name: source
+        resource: git-testpmd
+      outputs:
+      - name: image
+        resource: image-push-quay-testpmd
+    taskRef:
+      kind: ClusterTask
+      name: s2i
+  - name: deploy-testpmd
+    params:
+    - name: SCRIPT
+      value: oc $@
+    - name: ARGS
+      value:
+      - rollout latest dc/testpmd
+    - name: NAMESPACE
+      value: deploy-testpmd
+    runAfter:
+    - build-testpmd
+    taskRef:
+      kind: Task
+      name: openshift-client-cluster
+    resources:
+      inputs:
+      - name: cnf10-cluster
+        resource: cnf10-cluster
+```
+
+```sh
+$ oc create -f pipeline-dpdk-testpmd.yaml
+pipeline.tekton.dev/dpdk-build-testpmd created
+```
+
+![Networking using DPDK libraries](./content/ocp-pipeline-norun.png)
+
 
 Here a description of the dpdk-ds Pipeline composed by the two Tasks previously explained:
 
