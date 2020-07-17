@@ -256,7 +256,7 @@ A Task is a collection of Steps that you define in a specific order as part of y
 
 Also, we will require a custom task in order to deploy the new image into the CNF cluster. It is based in the [oc client]() ClusterTask and it takes into account the cluster resource definition and values to authenticate in the remote cluster.
 
-```sh
+```yaml
 apiVersion: tekton.dev/v1beta1
 kind: Task
 metadata:
