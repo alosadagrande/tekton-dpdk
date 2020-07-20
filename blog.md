@@ -533,7 +533,7 @@ A [Route](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/tri
 Lastly we need to validate our CD pipeline. In the video, a change will be pushed into the master branch of testPMD repository and will fire our workflow:
 
 
-[![625](http://img.youtube.com/vi/Om_Ob1kDI6A/0.jpg)](http://www.youtube.com/watch?v=Om_Ob1kDI6A "DPDK application built using OpenShift Pipelines based on Tekton")
+[![1110](http://img.youtube.com/vi/Om_Ob1kDI6A/0.jpg)](http://www.youtube.com/watch?v=Om_Ob1kDI6A "DPDK application built using OpenShift Pipelines based on Tekton")
 
 
 
