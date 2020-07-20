@@ -1,0 +1,12 @@
+apiVersion: triggers.tekton.dev/v1alpha1
+kind: EventListener
+metadata:
+  name: testpmd
+spec:
+  serviceAccountName: pipeline
+  triggers:
+  - name: pullrequest-build-and-deploy
+    template:
+      name: testpmd-build-and-deploy
+    bindings:
+    - name: testpmd-build-and-deploy

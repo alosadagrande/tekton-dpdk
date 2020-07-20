@@ -34,7 +34,7 @@ PIPELINE DIAGRAM TO BE CREATED
 
 The pipeline which will be in charge of:
 
-* Starting the pipeline everytime is pushed code into the master branch of the testPMD Git repository.
+* Starting the pipeline everytime code is pushed into the master branch of the testPMD Git repository.
 * Pulling the DPDK base image from Red Hat's registry.
 * Pulling testPMD application source code and source-to-image (s2i) scripts from a Git repository. Those scripts describe how our application must be built. 
 * Pushing the output image of this process into a public registry such as quay.io. 
@@ -50,14 +50,14 @@ The pipeline which will be in charge of:
   * [Demo Repository](https://github.com/alosadagrande/tekton-dpdk)
   * Tekton Files
 
-Whether you are going to also deploy the built application, you need to be aware that DPDK requires huge pages along with SR-IOV configuration properly enabled. Thus, you will require at least:
-
-**NOTE:** If you do not have an SR-IOV supported device, you still can run the OpenShift pipeline and build the example DPDK application.
+If you are planning to deploy the built application, you need to be aware that DPDK requires huge pages along with SR-IOV configuration properly enabled. Notice that it is not mandatory to deploy the application in another cluster, but in our scenario there is a separation between the Development cluster and the CNF or production cluster:
 
 * An OpenShift Container Platform 4.5 cluster, which we call CNF cluster, where the application is deployed. In this case, this cluster must have SR-IOV capable workers available.
 * A SR-IOV capable Node inside the "CNF" OpenShift cluster. In our case we have a worker Node with several Mellanox MT27800 Family [ConnectX-5] 25GbE dual-port SFP28 Network Interface Cards (NICs). Take a look at [this table](https://docs.openshift.com/container-platform/4.5/networking/hardware_networks/about-sriov.html) with all the supported SR-IOV NIC models.
 * [SR-IOV Nework operator](https://docs.openshift.com/container-platform/4.5/networking/hardware_networks/installing-sriov-operator.html) must be installed and running successfully. SR-IOV devices must be properly detected and configured.
 * Huge pages must be configured within the Node where the application is deployed. A detailed procedure can be found in [Configuring huge pages](https://docs.openshift.com/container-platform/4.5/scalability_and_performance/what-huge-pages-do-and-how-they-are-consumed-by-apps.html).
+
+**NOTE:** If you do not have an SR-IOV supported device, you still can run the OpenShift pipeline and build the example DPDK application. 
 
 
 # OpenShift Pipelines and Tekton
@@ -357,7 +357,7 @@ pipeline.tekton.dev/dpdk-build-testpmd created
 
 ![Networking using DPDK libraries](./content/ocp-pipeline-norun.png)
 
-Also you can see a pretty good description of the pipeline components using the Tekton CLI (tkn):
+A pretty good description of the pipeline components can be shown using the Tekton CLI (tkn):
 
 ```sh
 $ tkn p describe dpdk-build-testpmd
@@ -387,12 +387,149 @@ Namespace:   dpdk-build-testpmd
 
 ### Pipeline Triggers
 
-At this point we should be able to create a `PipelineRun` and execute our workflow. However, if we want to provide a real continous deployment pipeline we should start automatically the process everytime new code is pushed to the master branch of our testPMD git repository. Pushing to the master branch means that the code is ready to be in production. 
+At this point you may be able to create a `PipelineRun` and execute the workflow defined. 
+
+```sh
+$ oc create -f pipelinerun-dpdk-testpmd-oc.yaml 
+pipelinerun.tekton.dev/dpdk-build-testpmd-run-rf6mg created
+
+$ tkn pr logs -f dpdk-build-testpmd-run-rf6mg
+[build-testpmd : git-source-git-testpmd-x67jd] {"level":"info","ts":1595231279.2543507,"caller":"git/git.go:105","msg":"Successfully cloned https://github.com/alosadagrande/testpmd.git @ master in path /workspace/source"}
+[build-testpmd : git-source-git-testpmd-x67jd] {"level":"warn","ts":1595231279.2544188,"caller":"git/git.go:152","msg":"Unexpected error: creating symlink: symlink /tekton/home/.ssh /root/.ssh: file exists"}
+[build-testpmd : git-source-git-testpmd-x67jd] {"level":"info","ts":1595231279.324318,"caller":"git/git.go:133","msg":"Successfully initialized and updated submodules in path /workspace/source"}
+
+[build-testpmd : generate] Application dockerfile generated in /gen-source/Dockerfile.gen
+
+[build-testpmd : build] STEP 1: FROM registry.redhat.io/openshift4/dpdk-base-rhel8
+...
+```
+However, we want to provide a real continous deployment pipeline. Then, as explained in [Scenario](#Scenario), the pipeline must automatically be launched everytime new code is pushed to the master branch of testPMD git repository. We assume that pushing code to the master branch means it is ready for production. 
+
+[Tekton Triggers](https://github.com/tektoncd/triggers) provides a mechanism to declaratively create `PipelineRuns` based on external events. They implement a system for creating Kubernetes resources in response to external events, mostly in the form of **webhooks**. These events allow users to create resource templates that get instantiated when an event is received. Additionally, fields from event payloads can be injected into these resource templates as runtime information. This enables users to automatically create templated `PipelineRun` or `TaskRun` resources when an event is received.
+
+The Tekton Triggers project defines three main concepts (as Kubernetes CRDs). These are TriggerBindings, TriggerTemplates, and EventListeners.
+
+![Tekton triggers CRDs](./content/Tekton_triggers_resources.png)
+
+A `TriggerTemplate` defines a Template for how a Pipeline should be executed in reaction to events. When a event is received by our EventListener, the TriggerTemplate is rendered by extracting parameter values (eg: git repository url, revision etc.) from the event payload. This will result in the creation of new PipelineResources and the starting of a new PipelineRun. As you can see in the `TriggerTemplate` snippet, a bunch of parameters have been created. They will populate the PipelineResources included. PipelineResources previously created are moved to the TriggerTemplate definition.
+
+```yaml
+apiVersion: triggers.tekton.dev/v1alpha1
+kind: TriggerTemplate
+metadata:
+  name: testpmd-build-and-deploy
+spec:
+  params:
+  - name: GIT_URL
+    description: The Git repository url.
+  - name: REVISION
+    description: The revision to build and deploy.
+  - name: DEPLOYMENT
+    description: Name of the Deployment and the container name in the Deployment.
+  - name: SERVICE_ACCOUNT
+    description: The ServiceAccount under which to run the Pipeline.
+  - name: TAG
+    description: The tag of the image
+  - name: CADATA
+    description: Certificate Authority data of the deployment cluster
+  - name: TOKEN
+    description: A valid authentication token from robot serviceaccount in DEPLOY_NAMESPACE
+  - name: DEPLOY_CLUSTER_URL
+    description: URL of the cluster where the application is deployed
+  resourcetemplates:
+  - apiVersion: tekton.dev/v1beta1
+    kind: PipelineRun
+    metadata:
+      generateName: dpdk-build-testpmd-run-
+      namespace: dpdk-build-testpmd
+    spec:
+      pipelineRef:
+       name: dpdk-build-testpmd
+      resources:
+      - name: git-testpmd
+        resourceSpec:
+          params:
+          - name: url
+            value: $(params.GIT_URL)
+          - name: revision
+            value: $(params.REVISION)
+          - name: sslVerify
+            value: 'false'
+          type: git
+      - name: image-push-quay-testpmd
+        resourceSpec:
+          params:
+          - name: url
+            value: quay.io/alosadag/testpmd:$(params.TAG)
+          type: image
+      - name: cnf10-cluster
+        resourceSpec:
+          params:
+          - name: url
+            value: $(params.DEPLOY_CLUSTER_URL)
+          - name: cadata
+            value: $(params.CADATA)
+          - name: token
+            value: $(params.TOKEN)
+          type: cluster
+      serviceAccountName: $(params.SERVICE_ACCOUNT)
+      timeout: 1h0m0s
+```
+
+Next, create the TriggerBinding which specifies the values to use for your TriggerTemplate’s parameters. The GIT_URL and REVISION parameters are especially important because they are extracted from the pull request event body. See [GitHub pull request event documentation](https://developer.github.com/v3/activity/events/types/#pullrequestevent) for more information.
+
+The rest of the parameters in the TriggerBinding have hardcoded values, because they do not come from the pull request event; these values are specific to your OpenShift environment.
+
+**NOTE:** TOKEN and CADATA parameters must be replaced by the specific values in your environment.
+
+```yaml
+apiVersion: triggers.tekton.dev/v1alpha1
+kind: TriggerBinding
+metadata:
+  name: testpmd-build-and-deploy
+spec:
+  params:
+  - name: GIT_URL
+    value: $(body.repository.git_http_url)
+  - name: REVISION
+    value: $(body.checkout_sha)
+  - name: DEPLOYMENT
+    value: testpmd
+  - name: SERVICE_ACCOUNT
+    value: pipeline
+  - name: TAG
+    value: tekton
+  - name: DEPLOY_CLUSTER_URL
+    value: 'https://api.cnf10.kni.lab.eng.bos.redhat.com:6443'
+  - name: TOKEN
+    value: '$TOKEN'
+  - name: CADATA
+    value: '$CADATA'
+```
+
+The `EventListener` defines a list of triggers. Each trigger pairs a TriggerTemplate with a number of TriggerBindings. In this case, you only need one trigger that pairs your TriggerBinding with your TriggerTemplate.
+
+```yaml
+apiVersion: triggers.tekton.dev/v1alpha1
+kind: EventListener
+metadata:
+  name: testpmd
+spec:
+  serviceAccountName: pipeline
+  triggers:
+  - name: pullrequest-build-and-deploy
+    template:
+      name: testpmd-build-and-deploy
+    bindings:
+    - name: testpmd-build-and-deploy
+```
+
+Finally, create the proper RBAC configuration so that the `EventListener` Pod an red all Tekton Triggers resources so that it can know what to do with each event. The [rbac] YAML file to assign the Role to the `pipeline` service account.
+
+A Route must be exposed as well, so that the remote Git repository can send events to our Development cluster.
 
 
-/******************** TO BE FINISHED
 
-Tekton Triggers allows users to create resource templates that get instantiated when an event is received. Additionally, fields from event payloads can be injected into these resource templates as runtime information. This enables users to automatically create templated PipelineRun or TaskRun resources when an event is received.
 
 Now, it is time to run the pipeline. This can be done from the tkn binary, OCP web console or using the [vscode Tekton extension](https://github.com/redhat-developer/vscode-tekton).
 
@@ -524,3 +661,4 @@ tekton
 
 * A suggested read about SR-IOV, DPDK and CNF in general from Red Hatter Luis Arizmendi can be found in [Medium](https://medium.com/swlh/enhanced-platform-awareness-epa-in-openshift-part-iv-sr-iov-dpdk-and-rdma-1cc894c4b7d0)
 * Information how to configured DPDK can be found in the [performance-operators-lab](https://performance-operators-lab.readthedocs.io/en/latest/#dpdk-s2i) and in the [field_enablement folder](https://gitlab.cee.redhat.com/sysdeseng/cnf-integration/-/tree/master/field_enablement/dpdk)
+* [Tekton Triggers 101](https://developer.ibm.com/tutorials/tekton-triggers-101/)

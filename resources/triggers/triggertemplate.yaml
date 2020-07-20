@@ -1,0 +1,60 @@
+apiVersion: triggers.tekton.dev/v1alpha1
+kind: TriggerTemplate
+metadata:
+  name: testpmd-build-and-deploy
+spec:
+  params:
+  - name: GIT_URL
+    description: The Git repository url.
+  - name: REVISION
+    description: The revision to build and deploy.
+  - name: DEPLOYMENT
+    description: Name of the Deployment and the container name in the Deployment.
+  - name: SERVICE_ACCOUNT
+    description: The ServiceAccount under which to run the Pipeline.
+  - name: TAG
+    description: The tag of the image
+  - name: CADATA
+    description: Certificate Authority data of the deployment cluster
+  - name: TOKEN
+    description: A valid authentication token from robot serviceaccount in DEPLOY_NAMESPACE
+  - name: DEPLOY_CLUSTER_URL
+    description: URL of the cluster where the application is deployed
+  resourcetemplates:
+  - apiVersion: tekton.dev/v1beta1
+    kind: PipelineRun
+    metadata:
+      generateName: dpdk-build-testpmd-run-
+      namespace: dpdk-build-testpmd
+    spec:
+      pipelineRef:
+       name: dpdk-build-testpmd
+      resources:
+      - name: git-testpmd
+        resourceSpec:
+          params:
+          - name: url
+            value: $(params.GIT_URL)
+          - name: revision
+            value: $(params.REVISION)
+          - name: sslVerify
+            value: 'false'
+          type: git
+      - name: image-push-quay-testpmd
+        resourceSpec:
+          params:
+          - name: url
+            value: quay.io/alosadag/testpmd:$(params.TAG)
+          type: image
+      - name: cnf10-cluster
+        resourceSpec: 
+          params: 
+          - name: url
+            value: $(params.DEPLOY_CLUSTER_URL)
+          - name: cadata
+            value: $(params.CADATA)
+          - name: token
+            value: $(params.TOKEN)
+          type: cluster
+      serviceAccountName: $(params.SERVICE_ACCOUNT)
+      timeout: 1h0m0s

@@ -1,0 +1,22 @@
+apiVersion: triggers.tekton.dev/v1alpha1
+kind: TriggerBinding
+metadata:
+  name: testpmd-build-and-deploy
+spec:
+  params:
+  - name: GIT_URL
+    value: $(body.repository.git_http_url)
+  - name: REVISION
+    value: $(body.checkout_sha)
+  - name: DEPLOYMENT
+    value: testpmd
+  - name: SERVICE_ACCOUNT
+    value: pipeline
+  - name: TAG
+    value: tekton
+  - name: DEPLOY_CLUSTER_URL
+    value: 'https://api.cnf10.kni.lab.eng.bos.redhat.com:6443'
+  - name: TOKEN
+    value: 'REPLACE WITH YOUR TOKEN VALUE'
+    - name: CADATA
+    value: 'REPLACE WITH YOUR CADATA VALUE'
