@@ -528,137 +528,16 @@ Finally, create the proper RBAC configuration so that the `EventListener` Pod an
 
 A [Route](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/triggers/route.yaml) must be exposed as well, so that the remote Git repository can send events to our Development cluster.
 
-
-
-
-Now, it is time to run the pipeline. This can be done from the tkn binary, OCP web console or using the [vscode Tekton extension](https://github.com/redhat-developer/vscode-tekton).
-
-```sh
-$ tkn p start dpdk-ds -r git-cnf-features-deploy=git-cnf-features-deploy -r image-push-rhel8-dpdk-app=image-push-rhel8-dpdk-app --use-param-defaults
-Pipelinerun started: dpdk-ds-run-7kg6g
-```
-
-Pipeline logs can be seen using tkn binary:
-
-```sh
-$ tkn pipelinerun logs dpdk-ds-run-7kg6g -f -n dpdk
-
-[build-dpdk-app : git-source-git-cnf-features-deploy-6xjqp] {"level":"info","ts":1593683406.534047,"caller":"git/git.go:105","msg":"Successfully cloned https://github.com/openshift-kni/cnf-features-deploy.git @ release-4.4 in path /workspace/source"}
-[build-dpdk-app : git-source-git-cnf-features-deploy-6xjqp] {"level":"warn","ts":1593683406.5342803,"caller":"git/git.go:152","msg":"Unexpected error: creating symlink: symlink /tekton/home/.ssh /root/.ssh: file exists"}
-[build-dpdk-app : git-source-git-cnf-features-deploy-6xjqp] {"level":"info","ts":1593683406.7380693,"caller":"git/git.go:133","msg":"Successfully initialized and updated submodules in path /workspace/source"}
-
-[build-dpdk-app : generate] Application dockerfile generated in /gen-source/Dockerfile.gen
-
-[build-dpdk-app : build] STEP 1: FROM registry.redhat.io/openshift4/dpdk-base-rhel8
-[build-dpdk-app : build] Getting image source signatures
-[build-dpdk-app : build] Copying blob sha256:1a6747857d791055aacb2d5c8694fe405d7824c742a4e049737eafa8f840bf23
-[build-dpdk-app : build] Copying blob sha256:fc5aa93e3b58a9290f9ec203610784562c3f9831c969a1fcdc453633e89e4bea
-[build-dpdk-app : build] Copying blob sha256:57fc5d6704ccf8d71f760282e1effc88f53cb5e3a176a23e926bf2912b498ad5
-[build-dpdk-app : build] Copying config sha256:28c2a18c0aa8183454d0dd41a98b7eafa7f01bee60d9100f3a64482968dc7adb
-[build-dpdk-app : build] Writing manifest to image destination
-[build-dpdk-app : build] Storing signatures
-[build-dpdk-app : build] STEP 2: LABEL "io.openshift.s2i.build.image"="registry.redhat.io/openshift4/dpdk-base-rhel8"       "io.openshift.s2i.build.source-location"="tools/s2i-dpdk/test/test-app"
-[build-dpdk-app : build] 37d3b1777f7e4e77c3ba0ab7408da1233327c3b691280d636b2d6919eb4f3d4e
-[build-dpdk-app : build] STEP 3: USER root
-[build-dpdk-app : build] 585c37427eff8d9fc33a514eecb6fe95a6a0d7e04f41e942ba72c9008b111549
-[build-dpdk-app : build] STEP 4: COPY upload/src /tmp/src
-[build-dpdk-app : build] 567a879ee509f175d23d9630aea7c77ea8d150caaff70ef4092a5e9843a95b76
-[build-dpdk-app : build] STEP 5: RUN chown -R 1001:0 /tmp/src
-[build-dpdk-app : build] 7edeb2010758d51af2b2b20bb846855d1abb6c0646f9a44ac73d6c324d520c63
-[build-dpdk-app : build] STEP 6: USER 1001
-[build-dpdk-app : build] c5f3be9e7f2cc8b8a36eecf9dc0803a41fdedb5e9975e1f5ef7d328abff9eb0c
-[build-dpdk-app : build] STEP 7: RUN /usr/libexec/s2i/assemble
-[build-dpdk-app : build] ---> Installing application source...
-[build-dpdk-app : build] ---> Building application from source...
-[build-dpdk-app : build] make: Entering directory '/opt/app-root/src/test-pmd'
-[build-dpdk-app : build]   CC testpmd.o
-[build-dpdk-app : build]   CC parameters.o
-[build-dpdk-app : build]   CC cmdline.o
-[build-dpdk-app : build]   CC cmdline_flow.o
-[build-dpdk-app : build]   CC cmdline_mtr.o
-[build-dpdk-app : build]   CC cmdline_tm.o
-[build-dpdk-app : build]   CC config.o
-[build-dpdk-app : build]   CC iofwd.o
-[build-dpdk-app : build]   CC macfwd.o
-[build-dpdk-app : build]   CC macswap.o
-[build-dpdk-app : build]   CC flowgen.o
-[build-dpdk-app : build]   CC rxonly.o
-[build-dpdk-app : build]   CC txonly.o
-[build-dpdk-app : build]   CC csumonly.o
-[build-dpdk-app : build]   CC icmpecho.o
-[build-dpdk-app : build]   CC noisy_vnf.o
-[build-dpdk-app : build]   CC util.o
-[build-dpdk-app : build]   LD testpmd
-[build-dpdk-app : build]   INSTALL-APP testpmd
-[build-dpdk-app : build]   INSTALL-MAP testpmd.map
-[build-dpdk-app : build] make: Leaving directory '/opt/app-root/src/test-pmd'
-[build-dpdk-app : build] build done
-[build-dpdk-app : build] 0934898fc3c3613cfbd8852cad631cf4a74e385fe299f9896936b03cbf32c480
-[build-dpdk-app : build] STEP 8: CMD /usr/libexec/s2i/run
-[build-dpdk-app : build] STEP 9: COMMIT image-registry.openshift-image-registry.svc:5000/dpdk/rhel8-dpdk-app:tekton
-[build-dpdk-app : build] 8d412bcb87749bcd6a8698ca9b4aaf96fb2c0f8a7073b312e3d9c18943c1548d
-[build-dpdk-app : build] 8d412bcb87749bcd6a8698ca9b4aaf96fb2c0f8a7073b312e3d9c18943c1548d
-
-[build-dpdk-app : push] Getting image source signatures
-[build-dpdk-app : push] Copying blob sha256:197abfc41d40e7c450efa8d8a86a72370cd2a70718476b8a5289f599c4653f64
-[build-dpdk-app : push] Copying blob sha256:173e6a5d113caa638bbc87c13000b4904b9a6443554275ff9e13c31328618f6e
-[build-dpdk-app : push] Copying blob sha256:368c061025d47dcd1c059165eabdc95717ab74bf70762da3fc73827d6403e0a8
-[build-dpdk-app : push] Copying blob sha256:63d19bfaf5ccc585a75c5b0fcca3b6701d4b3f268b2007b1030d9f04be7c77db
-[build-dpdk-app : push] Copying blob sha256:4470541faea704a1f117401aea3e0397309e590a0513c856be118cc83102b046
-[build-dpdk-app : push] Copying blob sha256:f8ae5e656ae0a6fcbb9510d51979f0c49df9a235e82a57ff6ce5ad03365fb063
-[build-dpdk-app : push] Copying config sha256:8d412bcb87749bcd6a8698ca9b4aaf96fb2c0f8a7073b312e3d9c18943c1548d
-[build-dpdk-app : push] Writing manifest to image destination
-[build-dpdk-app : push] Copying config sha256:8d412bcb87749bcd6a8698ca9b4aaf96fb2c0f8a7073b312e3d9c18943c1548d
-[build-dpdk-app : push] Writing manifest to image destination
-[build-dpdk-app : push] Storing signatures
-
-[build-dpdk-app : image-digest-exporter-kh6c9] {"level":"info","ts":1593683474.667242,"logger":"fallback-logger","caller":"logging/config.go:76","msg":"Fetch GitHub commit ID from kodata failed: \"KO_DATA_PATH\" does not exist or is empty"}
-[build-dpdk-app : image-digest-exporter-kh6c9] {"level":"info","ts":1593683474.667554,"logger":"fallback-logger","caller":"imagedigestexporter/main.go:59","msg":"No index.json found for: image-push-rhel8-dpdk-app"}
-
-[deploy-dpdk-app : oc] + oc rollout latest dc/rhel8-dpdk-testpmd
-[deploy-dpdk-app : oc] deploymentconfig.apps.openshift.io/rhel8-dpdk-testpmd rolled out
-```
-
 # Validation
 
-Finally, verify that the testPMD POD is deployed successfully:
+Lastly we need to validate our CD pipeline. In the video, a change will be pushed into the master branch of testPMD repository and will fire our workflow:
 
-```sh
-$ oc get pods -L app=rhel8-dpdk-testpmd
-NAME                                                READY   STATUS      RESTARTS   AGE    APP=RHEL8-DPDK-TESTPMD
-rhel8-dpdk-testpmd-1-deploy                         0/1     Completed   0          86s    
-rhel8-dpdk-testpmd-1-lvcql                          1/1     Running     0          81s    
 
-$ oc describe pod rhel8-dpdk-testpmd-1-lvcql | grep -i Image:
-    Image:         image-registry.openshift-image-registry.svc:5000/dpdk/rhel8-dpdk-app@sha256:355249f051355fd1c23ac17f5e67392650a6bf7e7efa7c768baf1eac0cf3d236
-
-$ oc get is rhel8-dpdk-app
-NAME              IMAGE REPOSITORY                                                        TAGS     UPDATED
-rhel8-dpdk-app    image-registry.openshift-image-registry.svc:5000/dpdk/rhel8-dpdk-app    tekton   4 minutes ago
-
-$ oc describe is rhel8-dpdk-app 
-Name:			rhel8-dpdk-app
-Namespace:		dpdk
-Created:		About an hour ago
-Labels:			<none>
-Annotations:		<none>
-Image Repository:	image-registry.openshift-image-registry.svc:5000/dpdk/rhel8-dpdk-app
-Image Lookup:		local=false
-Unique Images:		1
-Tags:			1
-
-tekton
-  no spec tag
-
-  * image-registry.openshift-image-registry.svc:5000/dpdk/rhel8-dpdk-app@sha256:355249f051355fd1c23ac17f5e67392650a6bf7e7efa7c768baf1eac0cf3d236
-```
-
-![PipelineRun DPDK RHEL 8](./content/pipelinerun-dpdk-ds.png)
+<iframe width="1110" height="625" style="height: 625px" src="https://www.youtube.com/embed/Om_Ob1kDI6A" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
 
 
-# Notes
+# References
 
-* A suggested read about SR-IOV, DPDK and CNF in general from Red Hatter Luis Arizmendi can be found in [Medium](https://medium.com/swlh/enhanced-platform-awareness-epa-in-openshift-part-iv-sr-iov-dpdk-and-rdma-1cc894c4b7d0)
-* Information how to configured DPDK can be found in the [performance-operators-lab](https://performance-operators-lab.readthedocs.io/en/latest/#dpdk-s2i) and in the [field_enablement folder](https://gitlab.cee.redhat.com/sysdeseng/cnf-integration/-/tree/master/field_enablement/dpdk)
+* [Enhanced Platform Awareness (EPA) in OpenShift](https://medium.com/swlh/enhanced-platform-awareness-epa-in-openshift-part-iv-sr-iov-dpdk-and-rdma-1cc894c4b7d0) series of blog posts by Luis Arizmendi.
 * [Tekton Triggers 101](https://developer.ibm.com/tutorials/tekton-triggers-101/)
