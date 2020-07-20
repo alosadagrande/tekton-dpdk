@@ -29,15 +29,15 @@ In this blog post we are going to show how to leverage Red Hat's [DPDK builder i
 
 > :exclamation: In this case testPMD serves as an example of how to build a more fully-featured application using the DPDK base image.
 
-
-PIPELINE DIAGRAM TO BE CREATED 
+![CD DPDK application architecture](./content/architecture.png)
 
 The pipeline which will be in charge of:
 
 * Starting the pipeline everytime code is pushed into the master branch of the testPMD Git repository.
-* Pulling the DPDK base image from Red Hat's registry.
-* Pulling testPMD application source code and source-to-image (s2i) scripts from a Git repository. Those scripts describe how our application must be built. 
-* Pushing the output image of this process into a public registry such as quay.io. 
+* Pulling testPMD source code from the Git repository where the webhook is received.
+* Pulling the DPDK base image from Red Hat's catalog registry.
+* Building the application using S2i strategy. Specific S2i scripts that describe how our application must be built are obtained from the same Git repository.
+* Pushing the output image of this process into a public registry such as Quay.io. 
 * Deploying the new version of the application into the proper project running in another cluster, the CNF OpenShift cluster.
 
 **NOTE:** At the time of writing DPDK base image is running DPDK version 18.11.2. This [DPDK RHEL8 base image](https://catalog.redhat.com/software/containers/openshift4/dpdk-base-rhel8/5e32be6cdd19c77896004a41?container-tabs=overview) is built and maintained by Red Hat and based on the [Universal Base Image 8](https://access.redhat.com/articles/4238681).
@@ -533,8 +533,7 @@ A [Route](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/tri
 Lastly we need to validate our CD pipeline. In the video, a change will be pushed into the master branch of testPMD repository and will fire our workflow:
 
 
-[![1110](http://img.youtube.com/vi/Om_Ob1kDI6A/0.jpg)](http://www.youtube.com/watch?v=Om_Ob1kDI6A "DPDK application built using OpenShift Pipelines based on Tekton")
-
+[![Verification of the pipeline](http://img.youtube.com/vi/Om_Ob1kDI6A/0.jpg)](http://www.youtube.com/watch?v=Om_Ob1kDI6A "DPDK application built using OpenShift Pipelines based on Tekton")
 
 
 # References
