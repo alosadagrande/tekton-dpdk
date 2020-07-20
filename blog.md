@@ -524,9 +524,9 @@ spec:
     - name: testpmd-build-and-deploy
 ```
 
-Finally, create the proper RBAC configuration so that the `EventListener` Pod an red all Tekton Triggers resources so that it can know what to do with each event. The [rbac] YAML file to assign the Role to the `pipeline` service account.
+Finally, create the proper RBAC configuration so that the `EventListener` Pod an red all Tekton Triggers resources so that it can know what to do with each event. The [RBAC](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/triggers/rbac.yaml) YAML file to assign the Role to the `pipeline` service account.
 
-A Route must be exposed as well, so that the remote Git repository can send events to our Development cluster.
+A [Route](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/triggers/route.yaml) must be exposed as well, so that the remote Git repository can send events to our Development cluster.
 
 
 
