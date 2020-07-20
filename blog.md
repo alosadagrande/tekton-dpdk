@@ -1,7 +1,7 @@
 
 # Introduction
 
-You've probably heard about 5G and edge computing and the potential to change the world and affect our lives. This new technology will support billions of devices with almost no latency at speeds around 20 times faster than its predecessor. Now, think about the Internet of Things (IoT), Telemedicine, Augmented and Virtual Reality, Autonomous Cars, Faster Gaming finally being real... apologies for interrupting, but let's put aside for a moment our imagination and dig into the technology required to fulfill our dreams. 
+You've probably heard about 5G, edge computing and the potential to change the world and affect our lives. This new technology will support billions of devices with almost no latency at speeds around 20 times faster than its predecessor. Now, think about the Internet of Things (IoT), Telemedicine, Augmented and Virtual Reality, Autonomous Cars, Faster Gaming finally being real... apologies for interrupting, but let's put aside for a moment our imagination and dig into the technology required to fulfill our dreams. 
 
 All of these technologies and applications often demand very high-performance requirements for both throughput, latency, and efficiency. This means that a compilation of multiple features is required to allow adequate utilization of the underlying platform capabilities when deploying deterministic applications. Some examples of these required network features are Multus CNI, SR-IOV and DPDK. They are elements of what is called Containerized Network Functions or Cloud-native Network Functions (CNFs).
 
@@ -97,7 +97,7 @@ Using project "deploy-testpmd" on server "https://api.cnf10.kni.lab.eng.bos.redh
 Next, create the deploymentConfig. Notice that automatic rollout when a new image pushed is disabled since we want our pipeline to do that:
 
 ```sh
-c set triggers dc/testpmd
+$ oc set triggers dc/testpmd
 NAME                       TYPE    VALUE  AUTO
 deploymentconfigs/testpmd  config         true
 ```
@@ -530,7 +530,7 @@ A [Route](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/tri
 
 # Validation
 
-Lastly, we need to validate our CD pipeline. In the video, a change will be pushed into the master branch of testPMD repository and will fire our workflow:
+Lastly, we need to validate our CD pipeline. In the [video](http://www.youtube.com/watch?v=Om_Ob1kDI6A), a change will be pushed into the master branch of testPMD repository and will fire our workflow:
 
 
 [![Verification of the pipeline](http://img.youtube.com/vi/Om_Ob1kDI6A/0.jpg)](http://www.youtube.com/watch?v=Om_Ob1kDI6A "DPDK application built using OpenShift Pipelines based on Tekton")
@@ -539,4 +539,4 @@ Lastly, we need to validate our CD pipeline. In the video, a change will be push
 # References
 
 * [Enhanced Platform Awareness (EPA) in OpenShift](https://medium.com/swlh/enhanced-platform-awareness-epa-in-openshift-part-iv-sr-iov-dpdk-and-rdma-1cc894c4b7d0) series of blog posts by Luis Arizmendi.
-* [Tekton Triggers 101](https://developer.ibm.com/tutorials/tekton-triggers-101/)
+* [Tekton Triggers 101](https://developer.ibm.com/tutorials/tekton-triggers-101/) by Brandon Walker.
