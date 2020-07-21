@@ -1,0 +1,12 @@
+apiVersion: tekton.dev/v1alpha1
+kind: PipelineResource
+metadata:
+  name: git-testpmd
+  namespace: dpdk-build-testpmd
+spec:
+  params:
+  - name: url
+    value: https://github.com/alosadagrande/testpmd.git
+  - name: revision
+    value: master
+  type: git

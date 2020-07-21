@@ -29,7 +29,9 @@ In OpenShift 4.5, as Technology Preview, it is possible to use the DPDK librarie
 
 # Scenario
 
-Our goal is to create an automated pipeline that allows us to get the code, build and deploy a DPDK application. In this task, a continuous deployment process driven by Cloud-native CI/CD on OpenShift called [OpenShift Pipelines](https://docs.openshift.com/container-platform/4.5/pipelines/understanding-openshift-pipelines.html) will assist us. As an example application that requires DPDK libraries, we are going to build [testPMD](https://doc.dpdk.org/guides/testpmd_app_ug/). TestPMD is an application used to test DPDK in a packet forwarding mode and also to access NIC hardware features such as Flow Director. 
+_Our goal is to create an automated pipeline that allows us to get the code, build and deploy a DPDK application in a multi-cluster environment_. 
+
+In this task, a continuous deployment process driven by Cloud-native CI/CD on OpenShift called [OpenShift Pipelines](https://docs.openshift.com/container-platform/4.5/pipelines/understanding-openshift-pipelines.html) will assist us. As an example application that requires DPDK libraries, we are going to build [testPMD](https://doc.dpdk.org/guides/testpmd_app_ug/). TestPMD is an application used to test DPDK in a packet forwarding mode and also to access NIC hardware features such as Flow Director. 
 
 > :exclamation: testPMD is only provided as a simple example of how to build a more fully-featured application using the DPDK base image.
 
@@ -47,23 +49,120 @@ The pipeline will be in charge of:
 
 # Environment
 
+ITo create the containerized application, we require:
+
 * An OpenShift Container Platform 4.5 cluster where the application is built. This cluster will be called Development cluster.
 * [OpenShift Pipelines](https://www.openshift.com/learn/topics/pipelines) based on [Tekton](https://tekton.dev/) installed as the CI/CD tool. OpenShift Pipelines Operator v1.0.1 is available to install from OpenShift's OperatorHub.
 * Demo files:
   * [Demo Repository](https://github.com/alosadagrande/tekton-dpdk)
   * Tekton Files
+  * [testPMD application source code](https://github.com/alosadagrande/testpmd)
 
-If you are planning to deploy the built application, you need to be aware that DPDK requires huge pages along with SR-IOV configuration properly enabled. Notice that it is not mandatory to deploy the application in another cluster, but in our scenario, there is a separation between the Development cluster and the CNF or production cluster:
+If you are just planning to automate the application building process, the prior requirements will suffice. 
 
-* An OpenShift Container Platform 4.5 cluster, which we call CNF cluster, where the application is deployed. In this case, this cluster must have SR-IOV capable workers available.
-* An SR-IOV capable Node inside the "CNF" OpenShift cluster. In our case we have a worker Node with several Mellanox MT27800 Family [ConnectX-5] 25GbE dual-port SFP28 Network Interface Cards (NICs). Take a look at [this table](https://docs.openshift.com/container-platform/4.5/networking/hardware_networks/about-sriov.html) with all the supported SR-IOV NIC models.
-* [SR-IOV Nework operator](https://docs.openshift.com/container-platform/4.5/networking/hardware_networks/installing-sriov-operator.html) must be installed and running successfully. SR-IOV devices must be properly detected and configured.
-* Huge pages must be configured within the Node where the application is deployed. A detailed procedure can be found in [Configuring huge pages](https://docs.openshift.com/container-platform/4.5/scalability_and_performance/what-huge-pages-do-and-how-they-are-consumed-by-apps.html).
+In the event you also plan to deploy the built application, you need to be aware that DPDK requires huge pages along with SR-IOV configuration properly enabled. Observe that SR-IOV supported devices are required. In that case, you need as well:
 
-**NOTE:** If you do not have an SR-IOV supported device, you still can run the OpenShift pipeline and build the example DPDK application. 
+* An OpenShift Container Platform 4.5 cluster, which we call CNF cluster, where the application is deployed.
 
+> :warning: Notice that it is not mandatory to deploy the application in another cluster, but in our multi-cluster scenario, there is a separation between the Development cluster and the CNF or production cluster. 
 
-# OpenShift Pipelines and Tekton
+* An SR-IOV capable Node inside the CNF OpenShift cluster. In our environment, we have a worker Node with several Mellanox MT27800 Family [ConnectX-5] 25GbE dual-port SFP28 Network Interface Cards (NICs). Take a look at [this table](https://docs.openshift.com/container-platform/4.5/networking/hardware_networks/about-sriov.html) with all the supported SR-IOV NIC models.
+* [SR-IOV Nework operator](https://docs.openshift.com/container-platform/4.5/networking/hardware_networks/installing-sriov-operator.html) installed and running successfully. SR-IOV devices must be properly detected and configured.
+
+> :exclamation: If you do not have an SR-IOV supported device, you still can run the OpenShift pipeline and build the example DPDK application. 
+
+* Huge pages configured within the Node where the application is deployed. A detailed procedure can be found in [Configuring huge pages](https://docs.openshift.com/container-platform/4.5/scalability_and_performance/what-huge-pages-do-and-how-they-are-consumed-by-apps.html).
+
+## CNF cluster configuration
+
+This cluster is configured to run DPDK and SR-IOV workloads. It is also going to run every new release of the testPMD application pushed successfully to Quay.io container registry. On the hardware side, it has a couple of SR-IOV capable worker Nodes and configured using the SR-IOV operator. Huge pages and other performance profiles have been already applied. So it is ready, to run DPDK workloads. 
+
+Since it is going to run the DPDK application, let's create the project where all required Kubernetes objects are placed:
+
+```sh
+$ oc new-project deploy-testpmd
+Using project "deploy-testpmd" on server "https://api.cnf10.kni.lab.eng.bos.redhat.com:6443".
+```
+
+**NOTE:** Notice it is created into the CNF OpenShift cluster (api.cnf10.)
+
+Next, create the [dc-testpmd.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/cnf-cluster/dc-testpmd.yaml) deploymentConfig. Notice that the application requests a guaranteed amount of CPU, memory and Huge pages. Also, the Pod requires an additional network interface pinned to the SR-IOV VFS provided by the Node (k8s.v1.cni.cncf.io/networks: deploy-testpmd/sriov-network).
+
+>:warning: Make sure you change the addtional network to meet your SR-IOV network configuration.
+
+The automatic rollout is disabled since our pipeline will be in charge of this task when a new image is pushed to Quay.io:
+
+```sh
+$ oc set triggers dc/testpmd
+NAME                       TYPE    VALUE  AUTO
+deploymentconfigs/testpmd  config         true
+```
+
+Since the pipeline's deployment task running in the Development cluster must connect to the CNF cluster, we need to provide authentication and authorization to deploy a new version of the application. A service account called _robot_ in `deploy-testpmd` project with the proper permissions must be created. These credentials will be used by the deployment job.
+
+```
+$ oc create sa robot -n deploy-testpmd
+serviceaccount/robot created
+
+$ oc adm policy add-role-to-user admin -z robot
+clusterrole.rbac.authorization.k8s.io/admin added: "robot"
+```
+
+Robot's credentials must be extracted. They will be needed when creating the pipeline.
+
+```sh
+$ oc describe sa robot
+Name:                robot
+Namespace:           deploy-testpmd
+Labels:              <none>
+Annotations:         <none>
+Image pull secrets:  robot-dockercfg-bhhkj
+Mountable secrets:   robot-dockercfg-bhhkj
+                     robot-token-fkh6p
+Tokens:              robot-token-fgctv
+                     robot-token-fkh6p
+Events:              <none>
+
+$ TOKEN=$(oc get -o template secret robot-token-fkh6p --template '{{.data.token}}' | base64 -d)
+```
+
+## Development cluster configuration
+
+This cluster is in charge of running the DPDK application pipeline. It can be seen as an OpenShift cluster focused on development, a central point where all the different teams inside the company create and configure their automated builds, deployments or pipelines in general.
+
+OpenShift Pipelines Operator from OperatorHub is installed. So we can start by creating a project called _dpdk-build-testpmd_ where the automated pipeline will be executed.
+
+```sh
+ oc new-project dpdk-build-testpmd
+Now using project "dpdk-build-testpmd" on server "https://api.cnf20.cloud.lab.eng.bos.redhat.com:6443"
+```
+
+**NOTE:** Notice it is created into the Development OpenShift cluster (api.cnf20.)
+
+Now, it is time to tell OpenShift how to deal with the different container registries involved in our deployment. Red Hat's registry is required to pull the DPDK base image and Quay.io is used to store the resulting image. Both [requires authentication](https://access.redhat.com/RegistryAuthentication) to be configured. A secret type `dockerconfigjson` is created and imported as a secret inside our project:
+
+```sh
+$ podman login --authfile auth.json quay.io
+Username: alosadag
+Password: *******
+Login Succeeded!
+
+$ podman login --authfile auth.json registry.redhat.io
+Username: alosadag
+Password: ******
+Login Succeeded!
+
+$ oc create secret generic secret-registries --from-file=.dockerconfigjson=auth.json  --type=kubernetes.io/dockerconfigjson
+secret/secret-registries created
+```
+
+Finally, link the secret with the **pipeline** service account, which, by default, is responsible to run our pipeline. You will notice that it is already created.
+
+```sh
+$ oc secret link pipeline secret-registries
+```
+
+# OpenShift Pipelines (Tekton)
 
 OpenShift Pipelines is a powerful tool for building continuous delivery pipelines using modern infrastructure. The core component runs as a controller in a Kubernetes cluster. It registers several custom resource definitions (CRDs) which represent the basic Tekton objects with the Kubernetes API server, so the cluster knows to delegate requests containing those objects to Tekton. These primitives are fundamental to the way Tekton works, once you have OpenShift Pipelines Operator installed you can list them:
 
@@ -86,110 +185,16 @@ triggertemplates.triggers.tekton.dev
 **NOTE:** If you are new to OpenShift Pipelines and Tekton, you can start by reading the following articles published in the OpenShift blog: [Cloud-Native CI/CD with OpenShift Pipelines](https://www.openshift.com/blog/cloud-native-ci-cd-with-openshift-pipelines) , [OpenShift Pipelines Now Available as Technology Preview](https://www.openshift.com/blog/openshift-pipelines-tech-preview-blog) and [OpenShift Pipelines Tutorial using Tekton](https://www.openshift.com/blog/pipelines_with_tekton) among others.
 
 
-## CNF cluster configuration
-
-This cluster is in charge of running DPDK and SR-IOV workloads. In our case, it is going to run every new release of the testPMD application pushed successfully to Quay.io container registry. On the hardware side, it has a couple of SR-IOV capable worker nodes and it has been installed and configured using the SR-IOV operator. Huge pages and other performance profiles have been already applied. So it is ready, to run DPDK workloads. First, let's create the project where the objects required by the application will be installed:
-
-```sh
-$ oc new-project deploy-testpmd
-Using project "deploy-testpmd" on server "https://api.cnf10.kni.lab.eng.bos.redhat.com:6443".
-```
-
-**NOTE:** See the name of the OpenShift cluster server is cnf10.
-
-Next, create the deploymentConfig. Notice that automatic rollout when a new image pushed is disabled since we want our pipeline to do that:
-
-```sh
-$ oc set triggers dc/testpmd
-NAME                       TYPE    VALUE  AUTO
-deploymentconfigs/testpmd  config         true
-```
-
-Since the deployment task from our pipeline running in the Development cluster must connect to CNF cluster, we need to create a serviceAccount in `deploy-testpmd` project with the proper permissions to fulfill the task.  It is going to be granted with admin permissions on that project.
-
-```
-$ oc create sa robot -n deploy-testpmd
-serviceaccount/robot created
-
-$ oc adm policy add-role-to-user admin -z robot
-clusterrole.rbac.authorization.k8s.io/admin added: "robot"
-```
-
-Also, we will need to extract robot's token, so that it is possible to authenticate from the deployment task running in the Development cluster. It will be needed when creating the pipeline.
-
-```sh
-$ oc describe sa robot
-Name:                robot
-Namespace:           deploy-testpmd
-Labels:              <none>
-Annotations:         <none>
-Image pull secrets:  robot-dockercfg-bhhkj
-Mountable secrets:   robot-dockercfg-bhhkj
-                     robot-token-fkh6p
-Tokens:              robot-token-fgctv
-                     robot-token-fkh6p
-Events:              <none>
-
-$ TOKEN=$(oc get -o template secret robot-token-fkh6p --template '{{.data.token}}' | base64 -d)
-```
-
-## Development cluster configuration
-
-This cluster is in charge of running the DPDK application pipeline. It can be seen as an OpenShift cluster focused on development, a central point where all the different teams inside the company create and configure their automated builds, deployments or tasks in general.
-
-OpenShift Pipelines Operator from OperatorHub has been installed. So we can start by creating a project where the automated tasks will be executed: a project called "dpdk-build-testpmd`.
-
-```sh
- oc new-project dpdk-build-testpmd
-Now using project "dpdk-build-testpmd" on server "https://api.cnf20.cloud.lab.eng.bos.redhat.com:6443"
-```
-
-**NOTE:** See the name of the OpenShift cluster server is cnf12.
-
-Now, it is time to deal with the different container registries involved in our deployment. Both the Red Hat registry and Quay.io [requires authentication](https://access.redhat.com/RegistryAuthentication). Red Hat's registry is required to pull the DPDK base image and the latest is needed to store the resulting image. There are multiples ways to create a container registry secret inside OpenShift. In this case, we are going to create a type `dockerconfigjson` file which will be imported as a secret inside our project:
-
-```sh
-$ podman login --authfile auth.json Quay.io
-Username: alosadag
-Password: *******
-Login Succeeded!
-
-$ podman login --authfile auth.json registry.redhat.io
-Username: alosadag
-Password: ******
-Login Succeeded!
-
-$ cat auth.json 
-{
-	"auths": {
-		"Quay.io": {
-			"auth": "YWxvc2FkYWc6SGVyemVsZW3D2DE="
-		},
-		"registry.redhat.io": {
-			"auth": "YWxvc2FkYWc6ZjNHRnpOQjsXaml0"
-		}
-	}
-
-$ oc create secret generic secret-registries --from-file=.dockerconfigjson=auth.json  --type=kubernetes.io/dockerconfigjson
-secret/secret-registries created
-```
-
-Finally, we need to link the secret with the **deploy** serviceAccount, which is the user that will run our pipeline by default. You will notice that is already created.
-
-```sh
-$ oc secret link pipeline secret-registries
-```
-
 ### PipelineResources
 
-PipelineResources are a set of objects that are used as inputs to a Task and can be output by a Task. A Task can have multiple inputs and outputs. There are [multiple PipelineResources types](https://github.com/tektoncd/pipeline/blob/master/docs/resources.md#resource-types) currently supported. In our environment we are going to use three:
+_PipelineResources_ are a set of objects that are used as inputs to a Task and can be output by a Task. A Task can have multiple inputs and outputs. There are [multiple PipelineResources types](https://github.com/tektoncd/pipeline/blob/master/docs/resources.md#resource-types) supported. In our environment we are going to use three:
 
 * [Git](https://github.com/tektoncd/pipeline/blob/master/docs/resources.md#git-resource). It represents a Git repository where our testPMD source code is contained, so that it can be built by the pipeline. It is used as an input resource in our pipeline.
 * [Image](https://github.com/tektoncd/pipeline/blob/master/docs/resources.md#image-resource). It represents a container image stored in a container registry. It is used usually and also in our case as an output resource that will be pushed to the Quay.io registry.
 * [Cluster](https://github.com/tektoncd/pipeline/blob/master/docs/resources.md#image-resource). It represents a Kubernetes cluster other than the current cluster where OpenShift Pipelines is running on. It will be used to deploy the newly built testPMD application into the remote CNF OpenShift cluster.
 
 
-Next, let's install the PipelineResources previously defined. First, the input Git resource where we defined the Git repository and revision where lives the source code of our application:
+Next, let's install the `PipelineResources` previously defined. First, the input Git resource where we defined the Git repository and revision where lives the source code of our application:
 
 ```yaml
 apiVersion: tekton.dev/v1alpha1
@@ -227,13 +232,13 @@ spec:
   type: image
 ```
 
-Finally, in order to create the cluster resource, a certificate authority data of the cluster and a valid token (robot serviceAccount) are required. The certificate authority can be extracted from your Kube config file and you already have the token.
+Finally, to create the cluster resource, a certificate authority data of the cluster and a valid token are required. The certificate authority can be extracted from your Kube config file and you already have the [token](#cnf-cluster-configuration).
 
 ```sh
 $ CADATA=$(cat ~/.kube/config | grep certificate-authority-data | cut -d ":" -f2  | sort -u | tr -d '[:space:]')
 ```
 
-Here it is shown the cluster PipelineResource defnition:
+Here it is shown the complete cluster `PipelineResource` definition:
 
 ```yaml
 apiVersion: tekton.dev/v1alpha1
