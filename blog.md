@@ -194,7 +194,7 @@ _PipelineResources_ are a set of objects that are used as inputs to a Task and c
 * [Cluster](https://github.com/tektoncd/pipeline/blob/master/docs/resources.md#image-resource). It represents a Kubernetes cluster other than the current cluster where OpenShift Pipelines is running on. It will be used to deploy the newly built testPMD application into the remote CNF OpenShift cluster.
 
 
-Next, let's install the `PipelineResources` previously defined. First, the input Git resource where we defined the Git repository and revision where lives the source code of our application:
+Next, let's install the `PipelineResources` previously defined. First, the [pipeline-resource-git.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/tekton-pipeline/pipeline-resource-git.yaml) input Git resource where we defined the Git repository and revision where lives the source code of our application:
 
 ```yaml
 apiVersion: tekton.dev/v1alpha1
@@ -216,7 +216,7 @@ $ oc create -f pipeline-dpdk/pipeline-resource-git.yaml
 pipelineresource.tekton.dev/git-cnf-features-deploy created
 ```
 
-Then, create the output image resource that indicates where the built image is pushed.
+Then, create the [pipeline-resource-push-image.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/tekton-pipeline/pipeline-resource-push-image.yaml) output image resource that indicates where the built image is pushed.
 
 ```yaml
 cat pipeline-resource-push-image.yaml
@@ -238,7 +238,7 @@ Finally, to create the cluster resource, a certificate authority data of the clu
 $ CADATA=$(cat ~/.kube/config | grep certificate-authority-data | cut -d ":" -f2  | sort -u | tr -d '[:space:]')
 ```
 
-Here it is shown the complete cluster `PipelineResource` definition:
+Here it is shown the [pipeline-resource-cluster.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/tekton-pipeline/pipeline-resource-cluster.yaml definition:
 
 ```yaml
 apiVersion: tekton.dev/v1alpha1
@@ -260,9 +260,44 @@ spec:
 
 ### Tasks
 
-A Task is a collection of Steps that you define in a specific order as part of your pipeline. OpenShift comes by default with a bunch of clusterTasks predefined, which are similar to Tekton Tasks but with a cluster scope. In our environment, the [S2i task](https://github.com/tektoncd/catalog/tree/v1alpha1/s2i) will be very handy to build testPMD application along with DPDK builder image.
+A Task is a collection of Steps that you define in a specific order as part of your pipeline. OpenShift comes by default with a bunch of `ClusterTasks` predefined, which are similar to Tekton Tasks but with a cluster scope. In our environment, the [S2I task](https://github.com/tektoncd/catalog/tree/v1alpha1/s2i) will be very handy to build testPMD application along with DPDK builder image.
 
-Also, we will require a custom task in order to deploy the new image into the CNF cluster. It is based in the [oc client]() ClusterTask and it takes into account the cluster resource definition and values to authenticate in the remote cluster.
+```sh
+$ oc get clustertask -o name
+clustertask.tekton.dev/buildah
+clustertask.tekton.dev/buildah-v0-11-3
+clustertask.tekton.dev/git-clone
+clustertask.tekton.dev/jib-maven
+clustertask.tekton.dev/kn
+clustertask.tekton.dev/maven
+clustertask.tekton.dev/openshift-client
+clustertask.tekton.dev/openshift-client-v0-11-3
+clustertask.tekton.dev/s2i
+clustertask.tekton.dev/s2i-dotnet-3
+clustertask.tekton.dev/s2i-dotnet-3-v0-11-3
+clustertask.tekton.dev/s2i-go
+clustertask.tekton.dev/s2i-go-v0-11-3
+clustertask.tekton.dev/s2i-java-11
+clustertask.tekton.dev/s2i-java-11-v0-11-3
+clustertask.tekton.dev/s2i-java-8
+clustertask.tekton.dev/s2i-java-8-v0-11-3
+clustertask.tekton.dev/s2i-nodejs
+clustertask.tekton.dev/s2i-nodejs-v0-11-3
+clustertask.tekton.dev/s2i-perl
+clustertask.tekton.dev/s2i-perl-v0-11-3
+clustertask.tekton.dev/s2i-php
+clustertask.tekton.dev/s2i-php-v0-11-3
+clustertask.tekton.dev/s2i-python-3
+clustertask.tekton.dev/s2i-python-3-v0-11-3
+clustertask.tekton.dev/s2i-ruby
+clustertask.tekton.dev/s2i-ruby-v0-11-3
+clustertask.tekton.dev/s2i-v0-11-3
+clustertask.tekton.dev/tkn
+```
+
+S2I task requires an input `PipelineResource`of type Git ([pipeline-resource-git.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/tekton-pipeline/pipeline-resource-git.yaml)) and an output `PipelineResource` of type Image ( [pipeline-resource-push-image.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/tekton-pipeline/pipeline-resource-push-image.yaml)).
+
+Also, we will require a custom task ([pipeline-task-oc-client-remote.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/tekton-pipeline/pipeline-task-oc-client-remote.yaml)) to deploy the new image into the CNF cluster. It is based in the [openshift client](https://github.com/tektoncd/catalog/tree/master/task/openshift-client/0.1) `ClusterTask` and it takes into account the cluster resource definition to authenticate the deploy task in the remote cluster.
 
 ```yaml
 apiVersion: tekton.dev/v1beta1
@@ -299,7 +334,7 @@ spec:
     script: $(params.SCRIPT)
 ```
 
-Once the Tasks and PipelineResources are defined it is time to create the Pipeline that includes all of them in a single workflow. As you may notice, the three [resources](##PipelineResources) we already talked are defined in the spec field. Also every both build and deploy tasks are configured with the proper parameters:
+Once the `Tasks` and `PipelineResources` are defined, it is time to create the [pipeline-dpdk-testpmd.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/tekton-pipeline/pipeline-dpdk-testpmd.yaml) `Pipeline` that includes all of them in a single workflow. As you may notice, the three [resources](#PipelineResources) we talked are defined in the _spec_ field. Also, both build and deploy tasks are configured with the proper parameters:
 
 ```yaml
 apiVersion: tekton.dev/v1beta1
@@ -363,7 +398,7 @@ $ oc create -f pipeline-dpdk-testpmd.yaml
 pipeline.tekton.dev/dpdk-build-testpmd created
 ```
 
-![Networking using DPDK libraries](./content/ocp-pipeline-norun.png)
+![OCP console Pipeline view](./content/ocp-pipeline-norun.png)
 
 A pretty good description of the pipeline components can be shown using the Tekton CLI (tkn):
 
@@ -395,7 +430,7 @@ Namespace:   dpdk-build-testpmd
 
 ### Pipeline Triggers
 
-At this point. you may be able to create a `PipelineRun` and execute the workflow defined. 
+At this point, you may be able to create a `PipelineRun` and execute the workflow defined. 
 
 ```sh
 $ oc create -f pipelinerun-dpdk-testpmd-oc.yaml 
