@@ -25,7 +25,7 @@ spec:
       labels:
         deploymentconfig: testpmd
       annotations:
-        k8s.v1.cni.cncf.io/networks: openshift.io/sriovnic
+        k8s.v1.cni.cncf.io/networks: deploy-testpmd/sriov-network
     spec:
       serviceAccount: deployer
       serviceAccountName: deployer
