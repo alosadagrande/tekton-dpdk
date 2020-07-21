@@ -258,7 +258,7 @@ spec:
   
 ```
 
-### Tasks
+### Pipeline Tasks
 
 A Task is a collection of Steps that you define in a specific order as part of your pipeline. OpenShift comes by default with a bunch of `ClusterTasks` predefined, which are similar to Tekton Tasks but with a cluster scope. In our environment, the [S2I task](https://github.com/tektoncd/catalog/tree/v1alpha1/s2i) will be very handy to build testPMD application along with DPDK builder image.
 
@@ -428,9 +428,9 @@ Namespace:   dpdk-build-testpmd
  No pipelineruns
 ```
 
-### Pipeline Triggers
+### Adding Triggers to the Pipeline
 
-At this point, you may be able to create a `PipelineRun` and execute the workflow defined. 
+At this point, you may be able to create a `PipelineRun` ([pipelinerun-dpdk-testpmd-oc.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/tekton-pipeline/pipelinerun-dpdk-testpmd-oc.yaml)) and execute the workflow defined. 
 
 ```sh
 $ oc create -f pipelinerun-dpdk-testpmd-oc.yaml 
@@ -446,15 +446,16 @@ $ tkn pr logs -f dpdk-build-testpmd-run-rf6mg
 [build-testpmd : build] STEP 1: FROM registry.redhat.io/openshift4/dpdk-base-rhel8
 ...
 ```
-However, we want to provide a real continuous deployment pipeline. Then, as explained in [Scenario](#Scenario), the pipeline must automatically be launched every time a new code is pushed to the master branch of testPMD Git repository. We assume that pushing code to the master branch means it is ready for production. 
 
-[Tekton Triggers](https://github.com/tektoncd/triggers) provides a mechanism to declaratively create `PipelineRuns` based on external events. They implement a system for creating Kubernetes resources in response to external events, mostly in the form of **webhooks**. These events allow users to create resource templates that get instantiated when an event is received. Additionally, fields from event payloads can be injected into these resource templates as runtime information. This enables users to automatically create templated `PipelineRun` or `TaskRun` resources when an event is received.
+However, we want to provide a real continuous deployment pipeline. Then, as explained in [Scenario](#Scenario), the pipeline must be automatically launched every time a new code is pushed to the master branch of testPMD Git repository. We assume that pushing code to the master branch means: it is ready for production. 
 
-The Tekton Triggers project defines three main concepts (as Kubernetes CRDs). These are TriggerBindings, TriggerTemplates, and EventListeners.
+[Tekton Triggers](https://github.com/tektoncd/triggers) provides a mechanism to declaratively create `PipelineRuns` based on external events. They implement a system for creating Kubernetes resources in response to external events, mostly in the form of **webhooks**. These events allow users to create resource templates that get instantiated when an event is received. Additionally, fields from event payloads can be injected into these resource templates as runtime information. 
+
+The Tekton Triggers project defines three main concepts (as Kubernetes CRDs). These are `TriggerBindings`, `TriggerTemplates`, and `EventListeners`.
 
 ![Tekton triggers CRDs](./content/Tekton_triggers_resources.png)
 
-A `TriggerTemplate` defines a Template for how a Pipeline should be executed in reaction to events. When an event is received by our EventListener, the TriggerTemplate is rendered by extracting parameter values (eg: Git repository URL, revision, etc.) from the event payload. This will result in the creation of new PipelineResources and the starting of a new PipelineRun. As you can see in the `TriggerTemplate` snippet, a bunch of parameters has been created. They will populate the PipelineResources included. PipelineResources previously created are moved to the TriggerTemplate definition.
+A `TriggerTemplate` defines a Template for how a Pipeline should be executed in reaction to events. When an event is received by our EventListener, the TriggerTemplate is rendered by extracting parameter values (eg: Git repository URL, revision, etc.) from the event payload. This will result in the creation of new `PipelineResources` and the starting of a new `PipelineRun`. As you can see in the [TriggerTemplate file](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/tekton-triggers/triggertemplate.yaml), a bunch of parameters are created, which will be populated. `PipelineResources` previously created are moved to the `TriggerTemplate` definition.
 
 ```yaml
 apiVersion: triggers.tekton.dev/v1alpha1
@@ -519,11 +520,11 @@ spec:
       timeout: 1h0m0s
 ```
 
-Next, create the TriggerBinding which specifies the values to use for your TriggerTemplate’s parameters. The GIT_URL and REVISION parameters are especially important because they are extracted from the pull request event body. See [GitHub pull request event documentation](https://developer.github.com/v3/activity/events/types/#pullrequestevent) for more information.
+Next, create the [TriggerBinding file](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/tekton-triggers/triggerbinding.yaml) which specifies the values to use for your TriggerTemplate’s parameters. The _GIT_URL_ and _REVISION_ parameters are especially important because they are extracted from the pull request event body. See [GitHub pull request event documentation](https://developer.github.com/v3/activity/events/types/#pullrequestevent) for more information.
 
-The rest of the parameters in the TriggerBinding have hardcoded values because they do not come from the pull request event; these values are specific to your OpenShift environment.
+The rest of the parameters in the `TriggerBinding` have hardcoded values because they do not come from the pull request event; these values are specific to the OpenShift environment.
 
-**NOTE:** TOKEN and CADATA parameters must be replaced by the specific values in your environment.
+> :exclamation: TOKEN and CADATA parameters must be replaced by the specific values in your environment.
 
 ```yaml
 apiVersion: triggers.tekton.dev/v1alpha1
@@ -550,7 +551,7 @@ spec:
     value: '$CADATA'
 ```
 
-The `EventListener` defines a list of triggers. Each trigger pairs a TriggerTemplate with a number of TriggerBindings. In this case, you only need one trigger that pairs your TriggerBinding with your TriggerTemplate.
+The [EventListener file](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/tekton-triggers/eventlistener.yaml) defines a list of triggers. Each trigger pairs a `TriggerTemplate` with a number of `TriggerBindings`. 
 
 ```yaml
 apiVersion: triggers.tekton.dev/v1alpha1
@@ -567,13 +568,13 @@ spec:
     - name: testpmd-build-and-deploy
 ```
 
-Finally, create the proper RBAC configuration so that the `EventListener` Pod can read all Tekton Triggers resources so that it can know what to do with each event. The [RBAC](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/triggers/rbac.yaml) YAML file to assign the Role to the `pipeline` service account.
+Finally, create the proper RBAC configuration so that the `EventListener` Pod can read all Tekton Triggers resources so that it can know what to do with each event. The [RBAC](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/triggers/rbac.yaml) file assigns the Role to the `pipeline` service account.
 
-A [Route](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/triggers/route.yaml) must be exposed as well so that the remote Git repository can send events to our Development cluster.
+A [Route](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/triggers/route.yaml) must be exposed as well, so that the remote Git repository can send events to our Development OpenShift cluster.
 
 # Validation
 
-Lastly, we need to validate our CD pipeline. In the [video](http://www.youtube.com/watch?v=Om_Ob1kDI6A), a change will be pushed into the master branch of testPMD repository and will fire our workflow:
+Lastly, validate the CD pipeline. In the [video recording](http://www.youtube.com/watch?v=Om_Ob1kDI6A), you can see that every change pushed into the master branch of testPMD repository will fire our workflow:
 
 
 [![Verification of the pipeline](http://img.youtube.com/vi/Om_Ob1kDI6A/0.jpg)](http://www.youtube.com/watch?v=Om_Ob1kDI6A "DPDK application built using OpenShift Pipelines based on Tekton")
