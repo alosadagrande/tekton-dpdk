@@ -55,7 +55,7 @@ ITo create the containerized application, we require:
 * [OpenShift Pipelines](https://www.openshift.com/learn/topics/pipelines) based on [Tekton](https://tekton.dev/) installed as the CI/CD tool. OpenShift Pipelines Operator v1.0.1 is available to install from OpenShift's OperatorHub.
 * Demo files:
   * [Demo Repository](https://github.com/alosadagrande/tekton-dpdk)
-  * Tekton Files
+  * [Tekton Files](https://github.com/alosadagrande/tekton-dpdk/tree/master/resources)
   * [testPMD application source code](https://github.com/alosadagrande/testpmd)
 
 If you are just planning to automate the application building process, the prior requirements will suffice. 
