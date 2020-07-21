@@ -1,0 +1,52 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: dpdk-build-testpmd
+  namespace: dpdk-build-testpmd
+spec:
+  resources:
+  - name: git-testpmd
+    type: git
+  - name: image-push-quay-testpmd
+    type: image
+  - name: cnf10-cluster
+    type: cluster
+  tasks:
+  - name: build-testpmd
+    params:
+    - name: BUILDER_IMAGE
+      value: registry.redhat.io/openshift4/dpdk-base-rhel8
+    - name: PATH_CONTEXT
+      value: .
+    - name: TLSVERIFY
+      value: "false"
+    - name: LOGLEVEL
+      value: "0"
+    resources:
+      inputs:
+      - name: source
+        resource: git-testpmd
+      outputs:
+      - name: image
+        resource: image-push-quay-testpmd
+    taskRef:
+      kind: ClusterTask
+      name: s2i
+  - name: deploy-testpmd
+    params:
+    - name: SCRIPT
+      value: oc $@
+    - name: ARGS
+      value:
+      - rollout latest dc/testpmd
+    - name: NAMESPACE
+      value: deploy-testpmd
+    runAfter:
+    - build-testpmd
+    taskRef:
+      kind: Task
+      name: openshift-client-cluster
+    resources:
+      inputs:
+      - name: cnf10-cluster
+        resource: cnf10-cluster
