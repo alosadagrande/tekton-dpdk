@@ -3,15 +3,15 @@
 
 You've probably heard about the fifth-generation technology standard for cellular networks (5G) or edge computing, and the potential to change the world and affect our lives. This new technology will support billions of devices with almost no latency at speeds around 20 times faster than its predecessor. Now, think about the Internet of Things (IoT), Telemedicine, Virtual Reality (VR), Autonomous Cars, Faster Gaming... Apologies for interrupting, but let's put aside for a moment our imagination and dig into the technology required to satisfy our dreams. 
 
-All of these technologies and applications often demand very high-performance requirements for both throughput, latency, and efficiency. This means that a compilation of multiple features is required for adequate utilization of the underlying platform capabilities when deploying **deterministic** applications. Some examples of these required network features are [Multus CNI](https://github.com/intel/multus-cni), [SR-IOV](https://en.wikipedia.org/wiki/Single-root_input/output_virtualization) and [Data Plane Development Kit (DPDK)](https://www.dpdk.org/). They are elements of what is called **Containerized Network Functions** or **Cloud-native Network Functions** (CNFs).
+All of these technologies and applications often demand very high-performance requirements for both throughput, latency, and efficiency. This means that a compilation of multiple features is required for adequate utilization of the underlying platform capabilities when deploying **deterministic** applications. Some examples of these required network features are [Multus CNI](https://github.com/intel/multus-cni), [SR-IOV](https://en.wikipedia.org/wiki/Single-root_input/output_virtualization) and [Data Plane Development Kit (DPDK)](https://www.dpdk.org/). They are elements of what is called Containerized Network Functions or Cloud-native Network Functions (CNFs).
 
 ## Containerized Network Functions
 
-Before talking about CNFs, it is important to first understand **Network Functions Virtualization** (NFV). NFV replaces network hardware appliances with software, including **Virtual Network Functions** (VNFs), that run on **virtual machines** (VMs) running on commodity hardware. CNFs are similar to VNFs, but they run on lighter-weight containers on top of Kubernetes, providing greater agility and ease of deployment compared with VMs. While VNFs are software forms of network appliances such as routers, firewalls, load-balancers, etc. deployed as one or more VMs, CNFs are just the containerized network functions.
+Before talking about CNFs, it is important to first understand [Network Functions Virtualization (NFV)](https://en.wikipedia.org/wiki/Network_function_virtualization). NFV replaces network hardware appliances with software, including virtual network functions (VNFs), that run on virtual machines (VMs) running on commodity hardware. CNFs are similar to VNFs, but they run on lighter-weight containers on top of Kubernetes, providing greater agility and ease of deployment compared with VMs. While VNFs are software forms of network appliances such as routers, firewalls, load-balancers, etc. deployed as one or more VMs, CNFs are just the containerized network functions.
 
 In a generic Kubernetes application, the single networking interface provided by a Pod (eth0) is sufficient for most purposes. It even can be extended using CNI plugins available. However, in cases where low latency and high network performance is a must, we need a way of providing additional network interfaces to the Pod which has direct access to the hardware (NIC). Then, the application can communicate with the hardware which delivers these high capacities outside of the standard Kubernetes networking. This is why we start talking about CNFs and ways to accelerate them.
 
-In the OpenShift blog, we already presented and ["demystified" Multus](https://www.openshift.com/blog/demystifying-multus) by showing their deep relation with SR-IOV technology when dealing with high-performance networking workloads. Basically, Multus enables our application to attach to a virtual function (VF) interface presented by an SR-IOV capable NIC on the Kubernetes Node. This will permit us to achieve near-native networking performance. The [SR-IOV Operator](https://docs.openshift.com/container-platform/4.5/networking/hardware_networks/installing-sriov-operator.html) became GA on OpenShift 4.3, so information on how to install and configure it can be found in the official documentation.
+In the OpenShift blog, we already presented and ["demystified" Multus](https://www.openshift.com/blog/demystifying-multus) by showing its deep relation with SR-IOV technology when dealing with high-performance networking workloads. Basically, Multus enables our application to attach to a virtual function (VF) interface presented by an SR-IOV capable NIC on the Kubernetes Node. This will allow us to achieve near-native networking performance. The [SR-IOV Operator](https://docs.openshift.com/container-platform/4.5/networking/hardware_networks/installing-sriov-operator.html) became GA on OpenShift 4.3, so information on how to install and configure it can be found in the official documentation.
 
 ![SR-IOV and Multus diagram](./content/Demystifying-Multus-4.webp)
 
@@ -19,11 +19,11 @@ In the OpenShift blog, we already presented and ["demystified" Multus](https://w
 
 [DPDK](https://www.dpdk.org/) is a set of libraries and drivers for Linux and BSD built to accelerate packet processing workloads designed to run on x86, POWER and ARM processors. DPDK offers offloading TCP packet processing from the operating system Kernel space to process them in the User space to obtain a high performant and deterministic system. 
 
-DPDK libraries offer to avoid as much as possible kernel interrupts by skipping the Kernel space and move to the User space instead. This is possible thanks to the DPDK libraries and the DPDK poll mode driver (PMD). This driver is responsible for the communication between the application and network card, listening in a loop avoiding as much as possible interrupts while forwarding packets. The diagram below streamlines the idea:
+DPDK libraries offer freeing up the kernel from interrupts by processing the work in user space instead. This is possible thanks to the DPDK libraries and the DPDK poll mode driver (PMD). This driver is responsible for the communication between the application and network card, listening in a loop avoiding as much as possible interrupts while forwarding packets. The diagram below streamlines the idea:
 
 ![Networking using DPDK libraries](./content/kernel-user-space.png)
 
-In OpenShift 4.5, as Technology Preview, it is possible to use the DPDK libraries and attach a network interface (SR-IOV virtual function) directly to the Pod. With the intention of facilitating the application built process, we can leverage Red Hat's [DPDK builder image](registry.redhat.io/openshift4/dpdk-base-rhel8) available from Red Hat's official registry. This base or builder image is intended to build applications powered by DPDK and also work with multiple CNI plugins.
+In OpenShift 4.5, as Technology Preview, it is possible to use the DPDK libraries and attach a network interface (SR-IOV virtual function) directly to the Pod. To ease the application building process, we can leverage Red Hat's [DPDK builder image](registry.redhat.io/openshift4/dpdk-base-rhel8) available from Red Hat's official registry.
 
 **NOTE:** At the time of writing DPDK base image is running DPDK version 18.11.2. This [DPDK RHEL8 base image](https://catalog.redhat.com/software/containers/openshift4/dpdk-base-rhel8/5e32be6cdd19c77896004a41?container-tabs=overview) is built and maintained by Red Hat and based on the [Universal Base Image 8](https://access.redhat.com/articles/4238681).
 
@@ -31,7 +31,7 @@ In OpenShift 4.5, as Technology Preview, it is possible to use the DPDK librarie
 
 _Our goal is to create an automated pipeline that allows us to get the code, build and deploy a DPDK application in a multi-cluster environment_. 
 
-In this task, a continuous deployment process driven by Cloud-native CI/CD on OpenShift called [OpenShift Pipelines](https://docs.openshift.com/container-platform/4.5/pipelines/understanding-openshift-pipelines.html) will assist us. As an example application that requires DPDK libraries, we are going to build [testPMD](https://doc.dpdk.org/guides/testpmd_app_ug/). TestPMD is an application used to test DPDK in a packet forwarding mode and also to access NIC hardware features such as Flow Director. 
+In this task, a continuous deployment process driven by Cloud-native CI/CD on OpenShift called [OpenShift Pipelines](https://docs.openshift.com/container-platform/4.5/pipelines/understanding-openshift-pipelines.html) will assist us. As an example application that requires DPDK libraries, we are going to build [testPMD](https://doc.dpdk.org/guides/testpmd_app_ug/) and will run a test in packet forwarding mode, also access NIC hardware features such as Flow Director. 
 
 > :exclamation: testPMD is only provided as a simple example of how to build a more fully-featured application using the DPDK base image.
 
@@ -40,10 +40,10 @@ In this task, a continuous deployment process driven by Cloud-native CI/CD on Op
 The pipeline will be in charge of:
 
 * Starting the pipeline every time code is pushed into the master branch of the testPMD Git repository.
-* Pulling testPMD source code from the Git repository where the webhook is received.
-* Pulling the DPDK base image from Red Hat's catalog registry.
-* Building the application using S2I strategy. Specific S2i scripts that describe how our application must be built are obtained from the same Git repository.
-* Pushing the output image of this process into a public registry such as Quay.io. 
+* Pulling testPMD source code from the Git repository where the webhook was triggered.
+* Pulling the DPDK base image from Red Hat's catalog image registry.
+* Building the application using S2I strategy. Specific S2i scripts are stored in the same Git repository.
+* Pushing the resulting image to a public registry such as Quay.io. 
 * Deploying the new version of the application into the proper project running in another cluster, the CNF OpenShift cluster.
 
 
@@ -86,16 +86,16 @@ Using project "deploy-testpmd" on server "https://api.cnf10.kni.lab.eng.bos.redh
 
 **NOTE:** Notice it is created into the CNF OpenShift cluster (api.cnf10.)
 
-Next, create the [deployment-testpmd.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/cnf-cluster/deployment-testpmd.yaml) deployment. Notice that the application requests a guaranteed amount of CPU, memory and Huge pages. Also, the Pod requires an additional network interface pinned to the SR-IOV VFS provided by the Node (k8s.v1.cni.cncf.io/networks: deploy-testpmd/sriov-network).
+Next, create the [dc-testpmd.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/cnf-cluster/dc-testpmd.yaml) deploymentConfig. Notice that the application requests a guaranteed amount of CPU, memory and Huge pages. Also, the Pod requires an additional network interface pinned to the SR-IOV VFS provided by the Node (k8s.v1.cni.cncf.io/networks: deploy-testpmd/sriov-network).
 
 >:warning: Make sure you change the addtional network to meet your SR-IOV network configuration.
 
-Notice that the pipeline is in charge of rolling out a new version of the application when a new image is successfully pushed to Quay.io:
+The automatic rollout is disabled since our pipeline will be in charge of this task when a new image is pushed to Quay.io:
 
 ```sh
-$ oc set triggers deployment/testpmd
+$ oc set triggers dc/testpmd
 NAME                       TYPE    VALUE  AUTO
-deployment/testpmd  config         true
+deploymentconfigs/testpmd  config         true
 ```
 
 Since the pipeline's deployment task running in the Development cluster must connect to the CNF cluster, we need to provide authentication and authorization to deploy a new version of the application. A service account called _robot_ in `deploy-testpmd` project with the proper permissions must be created. These credentials will be used by the deployment job.
@@ -111,17 +111,29 @@ clusterrole.rbac.authorization.k8s.io/admin added: "robot"
 Robot's credentials must be extracted. They will be needed when creating the pipeline.
 
 ```sh
-$ export TOKEN=$(oc serviceaccounts get-token robot -n deploy-testpmd)
+$ oc describe sa robot
+Name:                robot
+Namespace:           deploy-testpmd
+Labels:              <none>
+Annotations:         <none>
+Image pull secrets:  robot-dockercfg-bhhkj
+Mountable secrets:   robot-dockercfg-bhhkj
+                     robot-token-fkh6p
+Tokens:              robot-token-fgctv
+                     robot-token-fkh6p
+Events:              <none>
+
+$ TOKEN=$(oc get -o template secret robot-token-fkh6p --template '{{.data.token}}' | base64 -d)
 ```
 
 ## Development cluster configuration
 
-This cluster is in charge of running the DPDK application pipeline. It can be seen as an OpenShift cluster focused on development, a central point where all the different teams inside the company create and configure their automated builds, deployments or pipelines in general.
+This cluster is in charge of running the DPDK application pipeline. It can be seen as an OpenShift cluster focused on development, a central point where all the different teams within a company create and configure their automated builds, deployments or pipelines in general.
 
 OpenShift Pipelines Operator from OperatorHub is installed. So we can start by creating a project called _dpdk-build-testpmd_ where the automated pipeline will be executed.
 
 ```sh
-$ oc new-project dpdk-build-testpmd
+ oc new-project dpdk-build-testpmd
 Now using project "dpdk-build-testpmd" on server "https://api.cnf20.cloud.lab.eng.bos.redhat.com:6443"
 ```
 
@@ -220,13 +232,13 @@ spec:
   type: image
 ```
 
-Finally, to create the cluster resource, a certificate authority data of the cluster and a valid token are required. The certificate authority can be extracted from your Kube config file and you already have the [token](#cnf-cluster-configuration).
+Finally, to create the cluster resource, a certificate authority data of the cluster and a valid token are required. The CA can be extracted from your Kube config file and you already have the [token](#cnf-cluster-configuration).
 
 ```sh
 $ CADATA=$(cat ~/.kube/config | grep certificate-authority-data | cut -d ":" -f2  | sort -u | tr -d '[:space:]')
 ```
 
-Here it is shown the [pipeline-resource-cluster.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/tekton-pipeline/pipeline-resource-cluster.yaml) definition:
+Here it is shown the [pipeline-resource-cluster.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/tekton-pipeline/pipeline-resource-cluster.yaml definition:
 
 ```yaml
 apiVersion: tekton.dev/v1alpha1
