@@ -7,7 +7,7 @@ All of these technologies and applications often demand very high-performance re
 
 ## Containerized Network Functions
 
-Before talking about CNFs, it is important to first understand **Network Functions Virtualization** (NFV). NFV replaces network hardware appliances with software, including **Virtual Network Functions** (VNFs), that run on **virtual machines** (VMs) running on commodity hardware. CNFs are similar to VNFs, but they run on lighter-weight containers on top of Kubernetes, providing greater agility and ease of deployment compared with VMs. While VNFs are software forms of network appliances such as routers, firewalls, load-balancers, etc. deployed as one or more VMs, CNFs are just the containerized network functions.
+Before talking about CNFs, it is important to first understand [Network Functions Virtualization (NFV)](https://en.wikipedia.org/wiki/Network_function_virtualization). NFV replaces network hardware appliances with software, including **Virtual Network Functions** (VNFs), that run on **virtual machines** (VMs) running on commodity hardware. CNFs are similar to VNFs, but they run on lighter-weight containers on top of Kubernetes, providing greater agility and ease of deployment compared with VMs. While VNFs are software forms of network appliances such as routers, firewalls, load-balancers, etc. deployed as one or more VMs, CNFs are just the containerized network functions.
 
 In a generic Kubernetes application, the single networking interface provided by a Pod (eth0) is sufficient for most purposes. It even can be extended using CNI plugins available. However, in cases where low latency and high network performance is a must, we need a way of providing additional network interfaces to the Pod which has direct access to the hardware (NIC). Then, the application can communicate with the hardware which delivers these high capacities outside of the standard Kubernetes networking. This is why we start talking about CNFs and ways to accelerate them.
 
@@ -19,11 +19,11 @@ In the OpenShift blog, we already presented and ["demystified" Multus](https://w
 
 [DPDK](https://www.dpdk.org/) is a set of libraries and drivers for Linux and BSD built to accelerate packet processing workloads designed to run on x86, POWER and ARM processors. DPDK offers offloading TCP packet processing from the operating system Kernel space to process them in the User space to obtain a high performant and deterministic system. 
 
-DPDK libraries offer to avoid as much as possible kernel interrupts by skipping the Kernel space and move to the User space instead. This is possible thanks to the DPDK libraries and the DPDK poll mode driver (PMD). This driver is responsible for the communication between the application and network card, listening in a loop avoiding as much as possible interrupts while forwarding packets. The diagram below streamlines the idea:
+DPDK libraries offer to free up the Kernel space from interrupts by processing the work in User space instead. This is possible thanks to the DPDK libraries and the DPDK poll mode driver (PMD). This driver is responsible for the communication between the application and network card, listening in a loop avoiding as much as possible interrupts while forwarding packets. The diagram below streamlines the idea:
 
 ![Networking using DPDK libraries](./content/kernel-user-space.png)
 
-In OpenShift 4.5, as Technology Preview, it is possible to use the DPDK libraries and attach a network interface (SR-IOV virtual function) directly to the Pod. With the intention of facilitating the application built process, we can leverage Red Hat's [DPDK builder image](registry.redhat.io/openshift4/dpdk-base-rhel8) available from Red Hat's official registry. This base or builder image is intended to build applications powered by DPDK and also work with multiple CNI plugins.
+In OpenShift 4.5, as Technology Preview, it is possible to use the DPDK libraries and attach a network interface (SR-IOV virtual function) directly to the Pod. To ease the application building process, we can leverage Red Hat's [DPDK builder image](registry.redhat.io/openshift4/dpdk-base-rhel8) available from Red Hat's official registry. This base or builder image is intended to build applications powered by DPDK and also work with multiple CNI plugins.
 
 **NOTE:** At the time of writing DPDK base image is running DPDK version 18.11.2. This [DPDK RHEL8 base image](https://catalog.redhat.com/software/containers/openshift4/dpdk-base-rhel8/5e32be6cdd19c77896004a41?container-tabs=overview) is built and maintained by Red Hat and based on the [Universal Base Image 8](https://access.redhat.com/articles/4238681).
 
@@ -40,10 +40,10 @@ In this task, a continuous deployment process driven by Cloud-native CI/CD on Op
 The pipeline will be in charge of:
 
 * Starting the pipeline every time code is pushed into the master branch of the testPMD Git repository.
-* Pulling testPMD source code from the Git repository where the webhook is received.
-* Pulling the DPDK base image from Red Hat's catalog registry.
-* Building the application using S2I strategy. Specific S2i scripts that describe how our application must be built are obtained from the same Git repository.
-* Pushing the output image of this process into a public registry such as Quay.io. 
+* Pulling testPMD source code from the Git repository where the webhook was triggered.
+* Pulling the DPDK base image from Red Hat's catalog image registry.
+* Building the application using S2i strategy. Specific S2i scripts that describe how our application must be built are stored in same Git repository.
+* Pushing the resulting image to a public registry such as Quay.io. 
 * Deploying the new version of the application into the proper project running in another cluster, the CNF OpenShift cluster.
 
 
@@ -116,7 +116,7 @@ $ export TOKEN=$(oc serviceaccounts get-token robot -n deploy-testpmd)
 
 ## Development cluster configuration
 
-This cluster is in charge of running the DPDK application pipeline. It can be seen as an OpenShift cluster focused on development, a central point where all the different teams inside the company create and configure their automated builds, deployments or pipelines in general.
+This cluster is in charge of running the DPDK application pipeline. It can be seen as an OpenShift cluster focused on development, a central point where all the different teams within a company create and configure their automated builds, deployments or pipelines in general.
 
 OpenShift Pipelines Operator from OperatorHub is installed. So we can start by creating a project called _dpdk-build-testpmd_ where the automated pipeline will be executed.
 
@@ -220,7 +220,7 @@ spec:
   type: image
 ```
 
-Finally, to create the cluster resource, a certificate authority data of the cluster and a valid token are required. The certificate authority can be extracted from your Kube config file and you already have the [token](#cnf-cluster-configuration).
+Finally, to create the cluster resource, a certificate authority (CA) data of the cluster and a valid token are required. The CA can be extracted from your Kube config file and you already have the [token](#cnf-cluster-configuration).
 
 ```sh
 $ CADATA=$(cat ~/.kube/config | grep certificate-authority-data | cut -d ":" -f2  | sort -u | tr -d '[:space:]')
