@@ -185,7 +185,9 @@ On the other hand, since they will probably be deprecated at some point in the f
 
 ### Pipeline Tasks
 
-A `Task` is a collection of Steps that you define in a specific order as part of your pipeline. OpenShift comes by default with a bunch of `ClusterTasks` predefined, which are similar to Tekton tasks but with a cluster scope. In our environment, the [git-clone Task](https://github.com/tektoncd/catalog/tree/master/task/git-clone/0.1) will be very handy to pull testPMD code from the Git repository.
+A `Task` is a collection of Steps that you define in a specific order as part of your pipeline. OpenShift comes by default with a bunch of `ClusterTasks` predefined, which are similar to Tekton tasks but with a cluster scope. In our environment, the [git-clone Task](https://github.com/tektoncd/catalog/tree/master/task/git-clone/0.1) is very handy to pull testPMD code from the Git repository. 
+
+**NOTE:** A copy of the git-clone task shipped with OpenShift Pipelines can also be found in [pipeline-clustertask-git-clone.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/beta/resources/tekton-pipeline/pipeline-clustertask-git-clone.yaml).
 
 ```sh
 $ oc get clustertask -o name
@@ -220,7 +222,7 @@ clustertask.tekton.dev/s2i-v0-11-3
 clustertask.tekton.dev/tkn
 ```
 
-Git-clone task requires a [Workspace](https://github.com/tektoncd/pipeline/blob/master/docs/workspaces.md) backed up by a Persistent Volume (PV) so that the code pulled can be shared among all the tasks that are part of the pipeline. Then, a Persistent Volume Claim (PVC) [pipeline-pvc-testpmd.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/beta/resources/tekton-pipeline/pipeline-pvc-testpmd.yaml) must be created in deploy-testpmd namespace.
+Git-clone task requires a [Workspace](https://github.com/tektoncd/pipeline/blob/master/docs/workspaces.md) backed up by a Persistent Volume (PV) so that the code pulled can be shared among all the tasks that are part of the pipeline. Then, a Persistent Volume Claim (PVC) [pipeline-pvc-testpmd.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/beta/resources/tekton-pipeline/pipeline-pvc-testpmd.yaml) must be created in dpdk-build-testpmd namespace.
 
 ```yaml
 apiVersion: v1
@@ -237,88 +239,14 @@ spec:
       storage: 1Gi
 ```
 
-Next, a S2I
+Next, a [S2I task](https://github.com/tektoncd/catalog/tree/master/task/s2i/0.1) allows us to build testPMD application along with DPDK builder image. Although there is a S2I Cluster Task already available in OpenShift, it makes use of Pipeline Resources. An adapted version of the S2I Cluster Task called _s2i-cnf_ is created instead in ([pipeline-task-s2i.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/beta/resources/tekton-pipeline/pipeline-task-s2i.yaml)
 
-
-Also, we will require a custom task ([pipeline-task-oc-client-remote.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/tekton-pipeline/pipeline-task-oc-client-remote.yaml)) to deploy the new image into the CNF cluster. It is based in the [openshift client](https://github.com/tektoncd/catalog/tree/master/task/openshift-client/0.1) `ClusterTask` and it takes into account the cluster resource definition to authenticate the deploy task in the remote cluster.
-
-
-```yaml
-apiVersion: tekton.dev/v1beta1
-kind: Task
-metadata:
-  name: s2i-cnf
-spec:
-  params:
-  - name: BUILDER_IMAGE
-    description: The location of the s2i builder image.
-  - name: PATH_CONTEXT
-    description: The location of the path to run s2i from.
-    default: .
-  - name: TLSVERIFY
-    description: Verify the TLS on the registry endpoint (for push/pull to a non-TLS registry)
-    default: 'true'
-  - name: LOGLEVEL
-    description: Log level when running the S2I binary
-    default: '0'
-  - name: IMAGE_URL
-    description: Full image name
-  workspaces:
-  - name: source
-  steps:
-  - name: generate
-    command:
-    - /usr/local/bin/s2i
-    - --loglevel=$(params.LOGLEVEL)
-    - build
-    - $(params.PATH_CONTEXT) 
-    - $(params.BUILDER_IMAGE)
-    - --as-dockerfile
-    - /gen-source/Dockerfile.gen
-    image: registry.redhat.io/ocp-tools-43-tech-preview/source-to-image-rhel8
-    volumeMounts:
-    - mountPath: /gen-source
-      name: gen-source
-    workingDir: $(workspaces.source.path)
-  - name: build
-    command:
-    - buildah
-    - bud
-    - --tls-verify=$(params.TLSVERIFY)
-    - --layers
-    - -f
-    - /gen-source/Dockerfile.gen
-    - -t
-    - $(params.IMAGE_URL)
-    - .
-    image: registry.redhat.io/rhel8/buildah
-    securityContext:
-      privileged: true
-    volumeMounts:
-    - mountPath: /var/lib/containers
-      name: varlibcontainers
-    - mountPath: /gen-source
-      name: gen-source
-    workingDir: /gen-source
-  - name: push
-    command:
-    - buildah
-    - push
-    - --tls-verify=$(params.TLSVERIFY)
-    - $(params.IMAGE_URL)
-    - docker://$(params.IMAGE_URL)
-    image: registry.redhat.io/rhel8/buildah
-    securityContext:
-      privileged: true
-    volumeMounts:
-    - mountPath: /var/lib/containers
-      name: varlibcontainers
-  volumes:
-  - emptyDir: {}
-    name: varlibcontainers
-  - emptyDir: {}
-    name: gen-source
+```sh
+$ oc create -f pipeline-task-s2i.yaml -n dpdk-build-testpmd
+task.tekton.dev/s2i-cnf created
 ```
+
+At this point, our testPMD image should be already created and uploaded to the Quay.io container image registry. Then, it is time to create a task that permits authenticate into the CNF cluster and roll out a new version of the application. Previously to Beta release, a `cluster` resource could be created. But, now a `kubeconfig-creator Task` is suggested in the [Migrating v1alpha1 to v1beta1](https://github.com/tektoncd/pipeline/blob/master/docs/migrating-v1alpha1-to-v1beta1.md#replacing-a-cluster-resource) documentation.
 
 kubeconfig-creator
 
