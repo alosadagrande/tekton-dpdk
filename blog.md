@@ -97,7 +97,7 @@ NAME                       TYPE    VALUE  AUTO
 deployment/testpmd  config         true
 ```
 
-Since the pipeline's deployment task running in the Development cluster must connect to the CNF cluster, we need to provide authentication and authorization to deploy a new version of the application. A service account called _robot_ in `deploy-testpmd` namespace with the proper permissions must be created. These credentials are only used by the pipeline Task to roll out a new version of testPMD in the CNF cluster.
+Since the pipeline's deployment task running in the Development cluster must connect to the CNF cluster, we need to provide authentication and authorization to deploy a new version of the application. A service account called _robot_ in `deploy-testpmd` namespace with the proper permissions must be created. These credentials are only used by the pipeline Task to authenticate to CNF cluster and roll out a new version of testPMD.
 
 ```
 $ oc create sa robot -n deploy-testpmd
@@ -151,7 +151,7 @@ $ oc secret link pipeline secret-registries
 
 # OpenShift Pipelines (Tekton)
 
-OpenShift Pipelines is a powerful tool for building continuous delivery pipelines using modern infrastructure. The core component runs as a controller in a Kubernetes cluster. It registers several custom resource definitions (CRDs) which represent the basic Tekton objects with the Kubernetes API server, so the cluster knows to delegate requests containing those objects to Tekton. These primitives are fundamental to the way Tekton works, once you have OpenShift Pipelines Operator installed you can list them:
+OpenShift Pipelines is a powerful tool for building continuous delivery pipelines using modern infrastructure. The core component runs as a controller in a Kubernetes cluster like OpenShift. It registers several custom resource definitions (CRDs) which represent the basic Tekton objects with the Kubernetes API server, so the cluster knows to delegate requests containing those objects to Tekton. These primitives are fundamental to the way Tekton works, once you have OpenShift Pipelines Operator installed you can list them:
 
 ```sh
 oc get crd | grep tekton | awk '{print $1}'
@@ -174,80 +174,18 @@ triggertemplates.triggers.tekton.dev
 
 ### PipelineResources
 
-_PipelineResources_ are a set of objects that are used as inputs to a Task and can be output by a Task. A Task can have multiple inputs and outputs. There are [multiple PipelineResources types](https://github.com/tektoncd/pipeline/blob/master/docs/resources.md#resource-types) supported. In our environment we are going to use three:
+_PipelineResources_ are a set of objects that are used as inputs to a Task and can be output by a Task. A Task can have multiple inputs and outputs. There are [multiple PipelineResources types](https://github.com/tektoncd/pipeline/blob/master/docs/resources.md#resource-types) still supported.
 
-* [Git](https://github.com/tektoncd/pipeline/blob/master/docs/resources.md#git-resource). It represents a Git repository where our testPMD source code is contained, so that it can be built by the pipeline. It is used as an input resource in our pipeline.
-* [Image](https://github.com/tektoncd/pipeline/blob/master/docs/resources.md#image-resource). It represents a container image stored in a container registry. It is used usually and also in our case as an output resource that will be pushed to the Quay.io registry.
-* [Cluster](https://github.com/tektoncd/pipeline/blob/master/docs/resources.md#image-resource). It represents a Kubernetes cluster other than the current cluster where OpenShift Pipelines is running on. It will be used to deploy the newly built testPMD application into the remote CNF OpenShift cluster.
+> :warning: Tekton project recently released its Beta, which creates higher levels of stability bringing the best features into the Pipelines Beta and creates more trust between the users and the features. With the new Beta functionality, users can rest assured that Beta features will not be removed. The move to Beta does mean a few deprecations and breaking changes.
 
+There is an on going effort migrating [Tekton from `v1alpha1` to Tekton `v1beta1` API version](https://github.com/tektoncd/pipeline/blob/master/docs/migrating-v1alpha1-to-v1beta1.md) which encourages stop using `PipelineResources`in favour of `Tasks`. Although, `PipelineResources` will not be in Beta as [explained officially](https://github.com/tektoncd/pipeline/blob/master/docs/resources.md#why-arent-pipelineresources-in-beta), they still supported in OpenShift Pipelines version 1.0.1. So, feel free to use them. 
 
-Next, let's install the `PipelineResources` previously defined. First, the [pipeline-resource-git.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/tekton-pipeline/pipeline-resource-git.yaml) input Git resource where we defined the Git repository and revision where lives the source code of our application:
+On the other hand, since they will probably be deprecated at some point in the future, I prefer to replace them by `Tasks`as suggested by Tekton team, which already provided a [docuemented migration path](https://github.com/tektoncd/pipeline/blob/master/docs/migrating-v1alpha1-to-v1beta1.md#replacing-pipelineresources-with-tasks. _The pipeline we are about to create will make use of the `v1beta1` Tekton API guaranteing long term compliance_.
 
-```yaml
-apiVersion: tekton.dev/v1alpha1
-kind: PipelineResource
-metadata:
-  name: git-testpmd
-  namespace: dpdk-build-testpmd
-spec:
-  params:
-  - name: url
-    value: https://github.com/alosadagrande/testpmd.git
-  - name: revision
-    value: master
-  type: git
-```
-
-```sh
-$ oc create -f pipeline-dpdk/pipeline-resource-git.yaml
-pipelineresource.tekton.dev/git-cnf-features-deploy created
-```
-
-Then, create the [pipeline-resource-push-image.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/tekton-pipeline/pipeline-resource-push-image.yaml) output image resource that indicates where the built image is pushed.
-
-```yaml
-cat pipeline-resource-push-image.yaml
-apiVersion: tekton.dev/v1alpha1
-kind: PipelineResource
-metadata:
-  name: image-push-quay-testpmd
-  namespace: dpdk-build-testpmd
-spec:
-  params:
-  - name: url
-    value: Quay.io/alosadag/testpmd:tekton
-  type: image
-```
-
-Finally, to create the cluster resource, a certificate authority (CA) data of the cluster and a valid token are required. The CA can be extracted from your Kube config file and you already have the [token](#cnf-cluster-configuration).
-
-```sh
-$ CADATA=$(cat ~/.kube/config | grep certificate-authority-data | cut -d ":" -f2  | sort -u | tr -d '[:space:]')
-```
-
-Here it is shown the [pipeline-resource-cluster.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/tekton-pipeline/pipeline-resource-cluster.yaml) definition:
-
-```yaml
-apiVersion: tekton.dev/v1alpha1
-kind: PipelineResource
-metadata:
-  name: cnf10-cluster
-  namespace: dpdk-build-testpmd
-spec:
-  type: cluster
-  params:
-    - name: url
-      value: 'https://api.cnf10.kni.lab.eng.bos.redhat.com:6443' 
-    - name: cadata
-      value: '$CADATA'
-    - name: token
-      value: '$TOKEN'
-  
-```
 
 ### Pipeline Tasks
 
-A Task is a collection of Steps that you define in a specific order as part of your pipeline. OpenShift comes by default with a bunch of `ClusterTasks` predefined, which are similar to Tekton Tasks but with a cluster scope. In our environment, the [S2I task](https://github.com/tektoncd/catalog/tree/v1alpha1/s2i) will be very handy to build testPMD application along with DPDK builder image.
+A `Task` is a collection of Steps that you define in a specific order as part of your pipeline. OpenShift comes by default with a bunch of `ClusterTasks` predefined, which are similar to Tekton `Tasks` but with a cluster scope. In our environment, the [git-clone Task](https://github.com/tektoncd/catalog/tree/master/task/git-clone/0.1) will be very handy to pull testPMD code from the Git repository.
 
 ```sh
 $ oc get clustertask -o name
@@ -281,6 +219,17 @@ clustertask.tekton.dev/s2i-ruby-v0-11-3
 clustertask.tekton.dev/s2i-v0-11-3
 clustertask.tekton.dev/tkn
 ```
+
+
+
+
+
+
+
+
+
+
+
 
 S2I task requires an input `PipelineResource`of type Git ([pipeline-resource-git.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/tekton-pipeline/pipeline-resource-git.yaml)) and an output `PipelineResource` of type Image ( [pipeline-resource-push-image.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/tekton-pipeline/pipeline-resource-push-image.yaml)).
 
