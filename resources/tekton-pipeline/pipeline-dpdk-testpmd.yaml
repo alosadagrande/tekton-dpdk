@@ -15,6 +15,7 @@ spec:
   - name: auth-url
   - name: auth-name
   - name: auth-namespace
+  - name: builder-image
   workspaces:
   - name: git-source
   tasks:
@@ -35,7 +36,7 @@ spec:
   - name: build-testpmd
     params:
     - name: BUILDER_IMAGE
-      value: registry.redhat.io/openshift4/dpdk-base-rhel8
+      value: $(params.builder-image)
     - name: PATH_CONTEXT
       value: . 
     - name: TLSVERIFY

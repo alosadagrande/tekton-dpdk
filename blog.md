@@ -185,7 +185,7 @@ On the other hand, since they will probably be deprecated at some point in the f
 
 ### Pipeline Tasks
 
-A `Task` is a collection of Steps that you define in a specific order as part of your pipeline. OpenShift comes by default with a bunch of `ClusterTasks` predefined, which are similar to Tekton tasks but with a cluster scope. In our environment, the [git-clone Task](https://github.com/tektoncd/catalog/tree/master/task/git-clone/0.1) is very handy to pull testPMD code from the Git repository. 
+A `Task` is a collection of Steps that you define in a specific order as part of your pipeline. OpenShift comes by default with a bunch of `ClusterTasks` predefined, which are similar to Tekton `Tasks` but with a cluster scope. In our environment, the [git-clone Task](https://github.com/tektoncd/catalog/tree/master/task/git-clone/0.1) is very handy to pull testPMD code from the Git repository. 
 
 **NOTE:** A copy of the git-clone task shipped with OpenShift Pipelines can also be found in [pipeline-clustertask-git-clone.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/beta/resources/tekton-pipeline/pipeline-clustertask-git-clone.yaml).
 
@@ -222,7 +222,7 @@ clustertask.tekton.dev/s2i-v0-11-3
 clustertask.tekton.dev/tkn
 ```
 
-Git-clone task requires a [Workspace](https://github.com/tektoncd/pipeline/blob/master/docs/workspaces.md) backed up by a Persistent Volume (PV) so that the code pulled can be shared among all the tasks that are part of the pipeline. Then, a Persistent Volume Claim (PVC) [pipeline-pvc-testpmd.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/beta/resources/tekton-pipeline/pipeline-pvc-testpmd.yaml) must be created in dpdk-build-testpmd namespace.
+Git-clone `ClusterTask` requires a [Workspace](https://github.com/tektoncd/pipeline/blob/master/docs/workspaces.md) backed up by a Persistent Volume (PV) so that the code pulled can be stored and then shared among all the jobs that are part of the pipeline. Therefore, a Persistent Volume Claim (PVC) [pipeline-pvc-testpmd.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/beta/resources/tekton-pipeline/pipeline-pvc-testpmd.yaml) must be created in the dpdk-build-testpmd namespace.
 
 ```yaml
 apiVersion: v1
@@ -239,56 +239,30 @@ spec:
       storage: 1Gi
 ```
 
-Next, a [S2I task](https://github.com/tektoncd/catalog/tree/master/task/s2i/0.1) allows us to build testPMD application along with DPDK builder image. Although there is a S2I Cluster Task already available in OpenShift, it makes use of Pipeline Resources. An adapted version of the S2I Cluster Task called _s2i-cnf_ is created instead in ([pipeline-task-s2i.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/beta/resources/tekton-pipeline/pipeline-task-s2i.yaml)
+Next, a Source to Image ([S2i](https://github.com/tektoncd/catalog/tree/master/task/s2i/0.1)) job is needed to build testPMD application along with DPDK builder image. Although there is a S2i `ClusterTask` already available in OpenShift, it makes use of `PipelineResources`. An adapted version of the shipped S2i called _s2i-cnf_ is created in ([pipeline-task-s2i.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/beta/resources/tekton-pipeline/pipeline-task-s2i.yaml). It basically uses `Workspaces` instead of resources.
 
 ```sh
 $ oc create -f pipeline-task-s2i.yaml -n dpdk-build-testpmd
 task.tekton.dev/s2i-cnf created
 ```
 
-At this point, our testPMD image should be already created and uploaded to the Quay.io container image registry. Then, it is time to create a task that permits authenticate into the CNF cluster and roll out a new version of the application. Previously to Beta release, a `cluster` resource could be created. But, now a `kubeconfig-creator Task` is suggested in the [Migrating v1alpha1 to v1beta1](https://github.com/tektoncd/pipeline/blob/master/docs/migrating-v1alpha1-to-v1beta1.md#replacing-a-cluster-resource) documentation.
+At this point, our testPMD image should be already created and uploaded to the Quay.io container image registry. Then, it is time to create a task that permits authenticate into the CNF cluster and roll out a new version of the application. Previously to Beta release, a `cluster` resource type could be created. But, now a `kubeconfig-creator Task` is recommended in the [Migrating v1alpha1 to v1beta1](https://github.com/tektoncd/pipeline/blob/master/docs/migrating-v1alpha1-to-v1beta1.md#replacing-a-cluster-resource) documentation. It fundamentally use the shared `Workspace` to save a valid Kubeconfig file that can be leveraged by the following task to trigger a deployment of testPMD in the CNF cluster.
 
-kubeconfig-creator
-
-
-Also, we will require a custom task ([pipeline-task-oc-client-remote.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/tekton-pipeline/pipeline-task-oc-client-remote.yaml)) to deploy the new image into the CNF cluster. It is based in the [openshift client](https://github.com/tektoncd/catalog/tree/master/task/openshift-client/0.1) `ClusterTask` and it takes into account the cluster resource definition to authenticate the deploy task in the remote cluster.
-
-```yaml
-apiVersion: tekton.dev/v1beta1
-kind: Task
-metadata:
-  name: openshift-client-cluster
-spec:
-  params:
-  - default: oc $@
-    description: The OpenShift CLI arguments to run
-    name: SCRIPT
-    type: string
-  - default:
-    - help
-    description: The OpenShift CLI arguments to run
-    name: ARGS
-    type: array
-  - name: NAMESPACE
-    description: Name of the project or namespace
-    type: string
-  resources:
-    inputs:
-    - name: cnf10-cluster
-      optional: false 
-      type: cluster
-  steps:
-  - args:
-    - "--kubeconfig"
-    - "/workspace/$(resources.inputs.cnf10-cluster.name)/kubeconfig --context $(resources.inputs.cnf10-cluster.name) -n $(params.NAMESPACE)"
-    - "$(params.ARGS)"
-    image: image-registry.openshift-image-registry.svc:5000/openshift/cli:latest
-    name: oc
-    resources: {}
-    script: $(params.SCRIPT)
+```sh
+$ oc create -f pipeline-task-kubeconfig-creator.yaml -n dpdk-build-testpmd 
+task.tekton.dev/kubeconfig-creator created
 ```
 
-Once all the `Tasks` are defined, it is time to create the [pipeline-dpdk-testpmd.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/tekton-pipeline/pipeline-dpdk-testpmd.yaml) `Pipeline` that includes all of them in a single workflow. As you may notice, the three [resources](#PipelineResources) we talked are defined in the _spec_ field. Also, both build and deploy tasks are configured with the proper parameters:
+The last task ([pipeline-task-oc-client-remote.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/tekton-pipeline/pipeline-task-oc-client-remote.yaml)) deploys the new image into the CNF cluster. It is a custom task based in the [openshift client](https://github.com/tektoncd/catalog/tree/master/task/openshift-client/0.1) `ClusterTask`. It consumes the Kubeconfig file created and stored previously in the shared `Workspace` to authenticate to the remote cluster as the robot service account.
+
+```sh
+$ oc create -f  pipeline-task-oc-client-remote.yaml -n dpdk-build-testpmd
+task.tekton.dev/openshift-client-cluster created
+```
+
+Once all the `Tasks` are defined, it is time to create the [pipeline-dpdk-testpmd.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/tekton-pipeline/pipeline-dpdk-testpmd.yaml) `Pipeline` that includes all of them in a single workflow. As you may notice, the five `Tasks` explained are defined in the _spec_ field. 
+
+> :exclamation: Notice that it is possible to define parameters inside the tasks, so it makes the pipeline more re-usable.
 
 ```yaml
 apiVersion: tekton.dev/v1beta1
@@ -297,34 +271,75 @@ metadata:
   name: dpdk-build-testpmd
   namespace: dpdk-build-testpmd
 spec:
-  resources:
-  - name: git-testpmd
-    type: git
-  - name: image-push-quay-testpmd
-    type: image
-  - name: cnf10-cluster
-    type: cluster
+  params:
+  - name: git-url
+  - name: git-revision
+  - name: image-name
+  - name: path-to-image-context
+  - name: path-to-dockerfile
+  - name: auth-token
+  - name: auth-username
+  - name: auth-url
+  - name: auth-name
+  - name: auth-namespace
+  - name: builder-image
+  workspaces:
+  - name: git-source
   tasks:
+  - name: fetch-from-git
+    taskRef:
+      kind: ClusterTask
+      name: git-clone
+    params:
+    - name: url
+      value: $(params.git-url)
+    - name: revision
+      value: $(params.git-revision)
+    - name: deleteExisting
+      value: "true"
+    workspaces:
+    - name: output
+      workspace: git-source
   - name: build-testpmd
     params:
     - name: BUILDER_IMAGE
-      value: registry.redhat.io/openshift4/dpdk-base-rhel8
+      value: $(params.builder-image)
     - name: PATH_CONTEXT
-      value: .
+      value: . 
     - name: TLSVERIFY
       value: "false"
     - name: LOGLEVEL
-      value: "0"
-    resources:
-      inputs:
-      - name: source
-        resource: git-testpmd
-      outputs:
-      - name: image
-        resource: image-push-quay-testpmd
+      value: "10"
+    - name: "IMAGE_URL"  
+      value: $(params.image-name)
+    workspaces:
+    - name: source
+      workspace: git-source
     taskRef:
-      kind: ClusterTask
-      name: s2i
+      name: s2i-cnf
+    runAfter:
+    - fetch-from-git
+  - name: create-kubeconfig
+    params:
+    - name: name
+      value: $(params.auth-name)
+    - name: username
+      value: $(params.auth-username)
+    - name: url
+      value: $(params.auth-url)
+    - name: token
+      value: $(params.auth-token)
+    - name: insecure
+      value: "true"
+    - name: namespace
+      value: $(params.auth-namespace)
+    taskRef:
+      name: kubeconfig-creator
+    workspaces:
+    - name: output
+      workspace: git-source
+    runAfter:
+    - build-testpmd
   - name: deploy-testpmd
     params:
     - name: SCRIPT
@@ -333,16 +348,17 @@ spec:
       value:
       - rollout latest dc/testpmd
     - name: NAMESPACE
-      value: deploy-testpmd
+      value: $(params.auth-namespace)
+    - name: FILENAME 
+      value: kubeconfig
     runAfter:
-    - build-testpmd
+    - create-kubeconfig 
     taskRef:
       kind: Task
       name: openshift-client-cluster
-    resources:
-      inputs:
-      - name: cnf10-cluster
-        resource: cnf10-cluster
+    workspaces:
+    - name: kube
+      workspace: git-source
 ```
 
 Create the `Pipeline` and verify the status by checking the OpenShift web console:
