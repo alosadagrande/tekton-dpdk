@@ -83,13 +83,13 @@ $ oc new-project deploy-testpmd
 Using project "deploy-testpmd" on server "https://api.cnf10.kni.lab.eng.bos.redhat.com:6443".
 ```
 
-**NOTE:** Notice it is created into the CNF OpenShift cluster (api.cnf10.)
+**NOTE:** Project is created into the CNF OpenShift cluster (api.cnf10.)
 
 Next, create the [deployment-testpmd.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/cnf-cluster/deployment-testpmd.yaml) deployment. Notice that the application requests a guaranteed amount of CPU, memory and Huge pages. Also, the Pod requires an additional network interface pinned to the SR-IOV VFS provided by the Node (k8s.v1.cni.cncf.io/networks: deploy-testpmd/sriov-network).
 
 >:warning: Replace the additional network annotation with the name of your SR-IOV network attach definition if you have a capable cluster.
 
-Notice that the pipeline is in charge of rolling out a new version of the application when a new image is successfully pushed to Quay.io:
+Observe that the pipeline is in charge of rolling out a new version of the application when a new image is successfully pushed to Quay.io:
 
 ```sh
 $ oc set triggers deployment/testpmd
@@ -124,7 +124,7 @@ $ oc new-project dpdk-build-testpmd
 Now using project "dpdk-build-testpmd" on server "https://api.cnf20.cloud.lab.eng.bos.redhat.com:6443"
 ```
 
-**NOTE:** Notice it is created into the Development OpenShift cluster (api.cnf20.)
+**NOTE:** Project is created into the Development OpenShift cluster (api.cnf20.)
 
 Now, it is time to tell OpenShift how to deal with the different container registries involved in our deployment. Red Hat's registry is required to pull the DPDK base image and Quay.io is used to store the resulting image. Both [requires authentication](https://access.redhat.com/RegistryAuthentication) to be configured. A secret type `dockerconfigjson` is created and imported as a secret inside our project:
 
@@ -178,9 +178,9 @@ _PipelineResources_ are a set of objects that are used as inputs to a Task and c
 
 > :warning: Tekton project recently released its Beta, which creates higher levels of stability bringing the best features into the Pipelines Beta and creates more trust between the users and the features. With the new Beta functionality, users can rest assured that Beta features will not be removed. The move to Beta does mean a few deprecations and breaking changes.
 
-There is an on going effort migrating [Tekton from `v1alpha1` to Tekton `v1beta1` API version](https://github.com/tektoncd/pipeline/blob/master/docs/migrating-v1alpha1-to-v1beta1.md) which encourages stop using `PipelineResources`in favour of `Tasks`. Although, `PipelineResources` will not be in Beta as [explained officially](https://github.com/tektoncd/pipeline/blob/master/docs/resources.md#why-arent-pipelineresources-in-beta), they still supported in OpenShift Pipelines version 1.0.1. So, feel free to use them. 
+There is an ongoing effort migrating [Tekton from `v1alpha1` to Tekton `v1beta1` API version](https://github.com/tektoncd/pipeline/blob/master/docs/migrating-v1alpha1-to-v1beta1.md) which encourages stop using `PipelineResources` in favor of `Tasks`. Although, `PipelineResources` will not be in Beta as [explained officially](https://github.com/tektoncd/pipeline/blob/master/docs/resources.md#why-arent-pipelineresources-in-beta), they still supported in OpenShift Pipelines version 1.0.1. So, feel free to use them. 
 
-On the other hand, since they will probably be deprecated at some point in the future, I prefer to replace them by `Tasks`as suggested by Tekton team, which already provided a [docuemented migration path](https://github.com/tektoncd/pipeline/blob/master/docs/migrating-v1alpha1-to-v1beta1.md#replacing-pipelineresources-with-tasks. _The pipeline we are about to create will make use of the `v1beta1` Tekton API guaranteing long term compliance_.
+On the other hand, since they will probably be deprecated at some point, I prefer to replace them by `Tasks` as suggested by Tekton team, which already provided a [documented migration path](https://github.com/tektoncd/pipeline/blob/master/docs/migrating-v1alpha1-to-v1beta1.md#replacing-pipelineresources-with-tasks). _The pipeline we are about to create will make use of the `v1beta1` Tekton API guaranteeing long term compliance_.
 
 
 ### Pipeline Tasks
@@ -222,7 +222,7 @@ clustertask.tekton.dev/s2i-v0-11-3
 clustertask.tekton.dev/tkn
 ```
 
-Git-clone `ClusterTask` requires a [Workspace](https://github.com/tektoncd/pipeline/blob/master/docs/workspaces.md) backed up by a Persistent Volume (PV) so that the code pulled can be stored and then shared among all the jobs that are part of the pipeline. Therefore, a Persistent Volume Claim (PVC) [pipeline-pvc-testpmd.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/beta/resources/tekton-pipeline/pipeline-pvc-testpmd.yaml) must be created in the dpdk-build-testpmd namespace.
+**Git-clone** `ClusterTask` requires a [Workspace](https://github.com/tektoncd/pipeline/blob/master/docs/workspaces.md) backed up by a Persistent Volume (PV) so that the code pulled is stored and then shared among all the jobs that are part of the pipeline. Therefore, a Persistent Volume Claim (PVC) [pipeline-pvc-testpmd.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/beta/resources/tekton-pipeline/pipeline-pvc-testpmd.yaml) must be created in the dpdk-build-testpmd namespace.
 
 ```yaml
 apiVersion: v1
@@ -239,7 +239,7 @@ spec:
       storage: 1Gi
 ```
 
-Next, a Source to Image ([S2i](https://github.com/tektoncd/catalog/tree/master/task/s2i/0.1)) job is needed to build testPMD application along with DPDK builder image. Although there is a S2i `ClusterTask` already available in OpenShift, it makes use of `PipelineResources`. An adapted version of the shipped S2i called _s2i-cnf_ is created in [pipeline-task-s2i.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/beta/resources/tekton-pipeline/pipeline-task-s2i.yaml). It basically uses `Workspaces` instead of resources.
+Next, a **Source to Image** ([S2i](https://github.com/tektoncd/catalog/tree/master/task/s2i/0.1)) job is needed to build testPMD application along with DPDK builder image. Although there is a S2i `ClusterTask` already available in OpenShift, it makes use of `PipelineResources`. An adapted version of the shipped S2i called _s2i-cnf_ is created in [pipeline-task-s2i.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/beta/resources/tekton-pipeline/pipeline-task-s2i.yaml). It basically uses `Workspaces` instead of resources.
 
 ```sh
 $ oc create -f pipeline-task-s2i.yaml -n dpdk-build-testpmd
@@ -450,7 +450,7 @@ The Tekton Triggers project defines three main concepts (as Kubernetes CRDs). Th
 
 ![Tekton triggers CRDs](./content/Tekton_triggers_resources.png)
 
-A `TriggerTemplate` defines a Template for how a Pipeline should be executed in reaction to events. When an event is received by our EventListener, the TriggerTemplate is rendered by extracting parameter values (eg: Git repository URL, revision, etc.) from the event payload. This will result in the creation of new `PipelineResources` and the starting of a new `PipelineRun`. As you can see in the [TriggerTemplate file](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/tekton-triggers/triggertemplate.yaml), a bunch of parameters are created, which will be populated. `PipelineResources` previously created are moved to the `TriggerTemplate` definition.
+A `TriggerTemplate` defines a Template for how a Pipeline should be executed in reaction to events. When an event is received by our EventListener, the TriggerTemplate is rendered by extracting parameter values (eg: Git repository URL, revision, etc.) from the event payload. This will result in the creation of a new `PipelineRun`. As you can see in the [TriggerTemplate file](https://github.com/alosadagrande/tekton-dpdk/blob/beta/resources/tekton-triggers/triggertemplate.yaml), all the parameters defined in the Pipeline]([pipeline-dpdk-testpmd.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/beta/resources/tekton-pipeline/pipeline-dpdk-testpmd.yaml)) are populated either from the event payload or from the `TriggerBinding` file.
 
 ```yaml
 apiVersion: triggers.tekton.dev/v1alpha1
@@ -463,18 +463,26 @@ spec:
     description: The Git repository url.
   - name: REVISION
     description: The revision to build and deploy.
-  - name: DEPLOYMENT
-    description: Name of the Deployment and the container name in the Deployment.
+  - name: GIT_SSLVERIFY
+    description: Validate Git certificate
   - name: SERVICE_ACCOUNT
     description: The ServiceAccount under which to run the Pipeline.
-  - name: TAG
-    description: The tag of the image
-  - name: CADATA
-    description: Certificate Authority data of the deployment cluster
-  - name: TOKEN
+  - name: AUTH_TOKEN
     description: A valid authentication token from robot serviceaccount in DEPLOY_NAMESPACE
-  - name: DEPLOY_CLUSTER_URL
+  - name: AUTH_URL
     description: URL of the cluster where the application is deployed
+  - name: BUILDER_IMAGE
+    description: Location of the builder image s2i
+  - name: IMAGE_URL
+    description: Full name of the built image
+  - name: AUTH_NAME
+    description: Name of the remote cluster
+  - name: AUTH_USERNAME
+    description: Username to authenticate to remote cluster
+  - name: AUTH_NAMESPACE
+    description: Default namespace in the remote cluster
+  - name: PATH_TO_DOCKERFILE
+  - name: PATH_TO_IMAGE_CONTEXT
   resourcetemplates:
   - apiVersion: tekton.dev/v1beta1
     kind: PipelineRun
@@ -483,43 +491,45 @@ spec:
       namespace: dpdk-build-testpmd
     spec:
       pipelineRef:
-       name: dpdk-build-testpmd
-      resources:
-      - name: git-testpmd
-        resourceSpec:
-          params:
-          - name: url
-            value: $(params.GIT_URL)
-          - name: revision
-            value: $(params.REVISION)
-          - name: sslVerify
-            value: 'false'
-          type: git
-      - name: image-push-quay-testpmd
-        resourceSpec:
-          params:
-          - name: url
-            value: Quay.io/alosadag/testpmd:$(params.TAG)
-          type: image
-      - name: cnf10-cluster
-        resourceSpec:
-          params:
-          - name: url
-            value: $(params.DEPLOY_CLUSTER_URL)
-          - name: cadata
-            value: $(params.CADATA)
-          - name: token
-            value: $(params.TOKEN)
-          type: cluster
+        name: dpdk-build-testpmd
+      params:
+      - name: git-url
+        value: $(params.GIT_URL)
+      - name: git-revision
+        value: $(params.REVISION)
+      - name: git-sslverify
+        value: $(params.GIT_SSLVERIFY)
+      - name: builder-image
+        value: $(params.BUILDER_IMAGE)
+      - name: image-name
+        value: $(params.IMAGE_URL)
+      - name: auth-name
+        value: $(params.AUTH_NAME)
+      - name: auth-username
+        value: $(params.AUTH_USERNAME)
+      - name: auth-url
+        value: $(params.AUTH_URL)
+      - name: auth-token
+        value: $(params.AUTH_TOKEN)
+      - name: auth-namespace
+        value: $(params.AUTH_NAMESPACE)
+      - name: path-to-dockerfile
+        value: $(param.PATH_TO_DOCKERFILE)
+      - name: path-to-image-context
+        value: $(param.PATH_TO_IMAGE_CONTEXT)
       serviceAccountName: $(params.SERVICE_ACCOUNT)
       timeout: 1h0m0s
+      workspaces:
+        - name: git-source
+          persistentVolumeClaim:
+            claimName: pvc-testpmd
 ```
 
-Next, create the [TriggerBinding file](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/tekton-triggers/triggerbinding.yaml) which specifies the values to use for your TriggerTemplate’s parameters. The _GIT_URL_ and _REVISION_ parameters are especially important because they are extracted from the pull request event body. See [GitHub pull request event documentation](https://developer.github.com/v3/activity/events/types/#pullrequestevent) for more information.
+Next, create the [TriggerBinding file](https://github.com/alosadagrande/tekton-dpdk/blob/beta/resources/tekton-triggers/triggerbinding.yaml) which specifies the values to use for your TriggerTemplate’s parameters. The _GIT_URL_ and _REVISION_ parameters are especially important because they are extracted from the pull request event body. See [GitHub pull request event documentation](https://developer.github.com/v3/activity/events/types/#pullrequestevent) for more information.
 
 The rest of the parameters in the `TriggerBinding` have hardcoded values because they do not come from the pull request event; these values are specific to the OpenShift environment.
 
-> :exclamation: TOKEN and CADATA parameters must be replaced by the specific values in your environment.
+> :exclamation: The authentication TOKEN and the remaining parameters must be replaced by the specific values in your environment.
 
 ```yaml
 apiVersion: triggers.tekton.dev/v1alpha1
@@ -532,18 +542,28 @@ spec:
     value: $(body.repository.git_http_url)
   - name: REVISION
     value: $(body.checkout_sha)
-  - name: DEPLOYMENT
-    value: testpmd
+  - name: GIT_SSLVERIFY
+    value: "false"
   - name: SERVICE_ACCOUNT
-    value: pipeline
-  - name: TAG
-    value: tekton
-  - name: DEPLOY_CLUSTER_URL
+    value: "pipeline"
+  - name: AUTH_NAME
+    value: "cluster-cnf10"
+  - name: AUTH_USERNAME
+    value: "robot"
+  - name: AUTH_URL
     value: 'https://api.cnf10.kni.lab.eng.bos.redhat.com:6443'
-  - name: TOKEN
-    value: '$TOKEN'
-  - name: CADATA
-    value: '$CADATA'
+  - name: AUTH_TOKEN
+    value: _ROBOT_SA_TOKEN_
+  - name: AUTH_NAMESPACE
+    value: "deploy-testpmd"
+  - name: BUILDER_IMAGE
+    value: 'registry.redhat.io/openshift4/dpdk-base-rhel8'
+  - name: IMAGE_URL
+    value: 'quay.io/alosadag/testpmd:tekton'
+  - name: PATH_TO_IMAGE_CONTEXT
+    value: ''
+  - name: PATH_TO_DOCKERFILE
+    value: ''
 ```
 
 The [EventListener file](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/tekton-triggers/eventlistener.yaml) defines a list of triggers. Each trigger pairs a `TriggerTemplate` with a number of `TriggerBindings`. 
