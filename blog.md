@@ -1,4 +1,3 @@
-
 # Introduction
 
 You've probably heard about the fifth-generation technology standard for cellular networks (5G) or edge computing, and the potential to change the world and affect our lives. This new technology will support billions of devices with almost no latency at speeds around 20 times faster than its predecessor. Now, think about the Internet of Things (IoT), Telemedicine, Virtual Reality (VR), Autonomous Cars, Faster Gaming... Apologies for interrupting, but let's put aside for a moment our imagination and dig into the technology required to satisfy our dreams. 
@@ -11,7 +10,7 @@ Before talking about CNFs, it is important to first understand [Network Function
 
 In a generic Kubernetes application, the single networking interface provided by a Pod (eth0) is sufficient for most purposes. It even can be extended using CNI plugins available. However, in cases where low latency and high network performance is a must, we need a way of providing additional network interfaces to the Pod which has direct access to the hardware (NIC). Then, the application can communicate with the hardware which delivers these high capacities outside of the standard Kubernetes networking. This is why we start talking about CNFs and ways to accelerate them.
 
-In the OpenShift blog, we already presented and ["demystified" Multus](https://www.openshift.com/blog/demystifying-multus) by showing their deep relation with SR-IOV technology when dealing with high-performance networking workloads. Basically, Multus enables our application to attach to a virtual function (VF) interface presented by an SR-IOV capable NIC on the Kubernetes Node. This will permit us to achieve near-native networking performance. The [SR-IOV Operator](https://docs.openshift.com/container-platform/4.5/networking/hardware_networks/installing-sriov-operator.html) became GA on OpenShift 4.3, so information on how to install and configure it can be found in the official documentation.
+In the OpenShift blog, we already presented and ["demystified" Multus](https://www.openshift.com/blog/demystifying-multus) by showing their deep relation with SR-IOV technology when dealing with high-performance networking workloads. Basically, Multus enables our application to attach to a virtual function (VF) interface presented by an SR-IOV capable NIC on the Kubernetes Node. This will permit us to achieve near-native networking performance. The [SR-IOV Operator](https://docs.openshift.com/container-platform/4.5/networking/hardware_networks/about-sriov.html) became GA on OpenShift 4.3, so information on how to [install]((https://docs.openshift.com/container-platform/4.5/networking/hardware_networks/installing-sriov-operator.html)) and [configure](https://docs.openshift.com/container-platform/4.5/networking/hardware_networks/configuring-sriov-operator.html) it can be found in the official documentation.
 
 ![SR-IOV and Multus diagram](./content/Demystifying-Multus-4.webp)
 
@@ -88,7 +87,7 @@ Using project "deploy-testpmd" on server "https://api.cnf10.kni.lab.eng.bos.redh
 
 Next, create the [deployment-testpmd.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/cnf-cluster/deployment-testpmd.yaml) deployment. Notice that the application requests a guaranteed amount of CPU, memory and Huge pages. Also, the Pod requires an additional network interface pinned to the SR-IOV VFS provided by the Node (k8s.v1.cni.cncf.io/networks: deploy-testpmd/sriov-network).
 
->:warning: Make sure you change the addtional network to meet your SR-IOV network configuration.
+>:warning: Replace the additional network annotation with the name of your SR-IOV network attach definition if you have a capable cluster.
 
 Notice that the pipeline is in charge of rolling out a new version of the application when a new image is successfully pushed to Quay.io:
 
@@ -98,7 +97,7 @@ NAME                       TYPE    VALUE  AUTO
 deployment/testpmd  config         true
 ```
 
-Since the pipeline's deployment task running in the Development cluster must connect to the CNF cluster, we need to provide authentication and authorization to deploy a new version of the application. A service account called _robot_ in `deploy-testpmd` project with the proper permissions must be created. These credentials will be used by the deployment job.
+Since the pipeline's deployment task running in the Development cluster must connect to the CNF cluster, we need to provide authentication and authorization to deploy a new version of the application. A service account called _robot_ in `deploy-testpmd` namespace with the proper permissions must be created. These credentials are only used by the pipeline Task to roll out a new version of testPMD in the CNF cluster.
 
 ```
 $ oc create sa robot -n deploy-testpmd
