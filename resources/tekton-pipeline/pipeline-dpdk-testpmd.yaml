@@ -4,34 +4,74 @@ metadata:
   name: dpdk-build-testpmd
   namespace: dpdk-build-testpmd
 spec:
-  resources:
-  - name: git-testpmd
-    type: git
-  - name: image-push-quay-testpmd
-    type: image
-  - name: cnf10-cluster
-    type: cluster
+  params:
+  - name: git-url
+  - name: git-revision
+  - name: image-name
+  - name: path-to-image-context
+  - name: path-to-dockerfile
+  - name: auth-token
+  - name: auth-username
+  - name: auth-url
+  - name: auth-name
+  - name: auth-namespace
+  workspaces:
+  - name: git-source
   tasks:
+  - name: fetch-from-git
+    taskRef:
+      kind: ClusterTask
+      name: git-clone
+    params:
+    - name: url
+      value: $(params.git-url)
+    - name: revision
+      value: $(params.git-revision)
+    - name: deleteExisting
+      value: "true"
+    workspaces:
+    - name: output
+      workspace: git-source
   - name: build-testpmd
     params:
     - name: BUILDER_IMAGE
       value: registry.redhat.io/openshift4/dpdk-base-rhel8
     - name: PATH_CONTEXT
-      value: .
+      value: . 
     - name: TLSVERIFY
       value: "false"
     - name: LOGLEVEL
-      value: "0"
-    resources:
-      inputs:
-      - name: source
-        resource: git-testpmd
-      outputs:
-      - name: image
-        resource: image-push-quay-testpmd
+      value: "10"
+    - name: "IMAGE_URL"  
+      value: $(params.image-name)
+    workspaces:
+    - name: source
+      workspace: git-source
     taskRef:
-      kind: ClusterTask
-      name: s2i
+      name: s2i-cnf
+    runAfter:
+    - fetch-from-git
+  - name: create-kubeconfig
+    params:
+    - name: name
+      value: $(params.auth-name)
+    - name: username
+      value: $(params.auth-username)
+    - name: url
+      value: $(params.auth-url)
+    - name: token
+      value: $(params.auth-token)
+    - name: insecure
+      value: "true"
+    - name: namespace
+      value: $(params.auth-namespace)
+    taskRef:
+      name: kubeconfig-creator
+    workspaces:
+    - name: output
+      workspace: git-source
+    runAfter:
+    - build-testpmd
   - name: deploy-testpmd
     params:
     - name: SCRIPT
@@ -40,13 +80,15 @@ spec:
       value:
       - rollout latest dc/testpmd
     - name: NAMESPACE
-      value: deploy-testpmd
+      value: $(params.auth-namespace)
+    - name: FILENAME 
+      value: kubeconfig
     runAfter:
-    - build-testpmd
+    - create-kubeconfig 
     taskRef:
       kind: Task
       name: openshift-client-cluster
-    resources:
-      inputs:
-      - name: cnf10-cluster
-        resource: cnf10-cluster
+    workspaces:
+    - name: kube
+      workspace: git-source
+
