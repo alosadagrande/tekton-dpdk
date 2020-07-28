@@ -239,28 +239,28 @@ spec:
       storage: 1Gi
 ```
 
-Next, a Source to Image ([S2i](https://github.com/tektoncd/catalog/tree/master/task/s2i/0.1)) job is needed to build testPMD application along with DPDK builder image. Although there is a S2i `ClusterTask` already available in OpenShift, it makes use of `PipelineResources`. An adapted version of the shipped S2i called _s2i-cnf_ is created in ([pipeline-task-s2i.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/beta/resources/tekton-pipeline/pipeline-task-s2i.yaml). It basically uses `Workspaces` instead of resources.
+Next, a Source to Image ([S2i](https://github.com/tektoncd/catalog/tree/master/task/s2i/0.1)) job is needed to build testPMD application along with DPDK builder image. Although there is a S2i `ClusterTask` already available in OpenShift, it makes use of `PipelineResources`. An adapted version of the shipped S2i called _s2i-cnf_ is created in [pipeline-task-s2i.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/beta/resources/tekton-pipeline/pipeline-task-s2i.yaml). It basically uses `Workspaces` instead of resources.
 
 ```sh
 $ oc create -f pipeline-task-s2i.yaml -n dpdk-build-testpmd
 task.tekton.dev/s2i-cnf created
 ```
 
-At this point, our testPMD image should be already created and uploaded to the Quay.io container image registry. Then, it is time to create a task that permits authenticate into the CNF cluster and roll out a new version of the application. Previously to Beta release, a `cluster` resource type could be created. But, now a `kubeconfig-creator Task` is recommended in the [Migrating v1alpha1 to v1beta1](https://github.com/tektoncd/pipeline/blob/master/docs/migrating-v1alpha1-to-v1beta1.md#replacing-a-cluster-resource) documentation. It fundamentally use the shared `Workspace` to save a valid Kubeconfig file that can be leveraged by the following task to trigger a deployment of testPMD in the CNF cluster.
+At this point, our testPMD image should be already created and uploaded to the Quay.io container image registry. Then, it is time to create a task that permits authenticate into the CNF cluster and roll out a new version of the application. Previously to Beta release, a `cluster` resource type could be created. But, now a `kubeconfig-creator Task` is recommended in the [Migrating v1alpha1 to v1beta1](https://github.com/tektoncd/pipeline/blob/master/docs/migrating-v1alpha1-to-v1beta1.md#replacing-a-cluster-resource) documentation. It fundamentally uses the shared `Workspace` to save a valid Kubeconfig file that can be leveraged by the following task to trigger a deployment of testPMD in the CNF cluster.
 
 ```sh
 $ oc create -f pipeline-task-kubeconfig-creator.yaml -n dpdk-build-testpmd 
 task.tekton.dev/kubeconfig-creator created
 ```
 
-The last task ([pipeline-task-oc-client-remote.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/tekton-pipeline/pipeline-task-oc-client-remote.yaml)) deploys the new image into the CNF cluster. It is a custom task based in the [openshift client](https://github.com/tektoncd/catalog/tree/master/task/openshift-client/0.1) `ClusterTask`. It consumes the Kubeconfig file created and stored previously in the shared `Workspace` to authenticate to the remote cluster as the robot service account.
+The last task defined in [pipeline-task-oc-client-remote.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/beta/resources/tekton-pipeline/pipeline-task-oc-client-remote.yaml) deploys the new image into the CNF cluster. It is a custom task based in the [openshift client](https://github.com/tektoncd/catalog/tree/master/task/openshift-client/0.1) `ClusterTask`. It consumes the Kubeconfig file created and stored previously in the shared `Workspace` to authenticate to the remote cluster as the robot service account.
 
 ```sh
 $ oc create -f  pipeline-task-oc-client-remote.yaml -n dpdk-build-testpmd
 task.tekton.dev/openshift-client-cluster created
 ```
 
-Once all the `Tasks` are defined, it is time to create the [pipeline-dpdk-testpmd.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/tekton-pipeline/pipeline-dpdk-testpmd.yaml) `Pipeline` that includes all of them in a single workflow. As you may notice, the five `Tasks` explained are defined in the _spec_ field. 
+Once all the `Tasks` are defined, it is time to create the [pipeline-dpdk-testpmd.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/beta/resources/tekton-pipeline/pipeline-dpdk-testpmd.yaml) `Pipeline` that includes all of them in a single workflow. As you may notice, the five `Tasks` explained are defined in the _spec_ field. 
 
 > :exclamation: Notice that it is possible to define parameters inside the tasks, so it makes the pipeline more re-usable.
 

@@ -1,0 +1,38 @@
+apiVersion: tekton.dev/v1beta1
+kind: PipelineRun
+metadata:
+  generateName: dpdk-build-testpmd-ws-run-
+  namespace: dpdk-build-testpmd
+spec:
+  params:
+  - name: git-revision
+    value: "master"
+  - name: git-url
+    value: 'https://github.com/alosadagrande/testpmd.git'
+  - name: image-name
+    value: 'quay.io/alosadag/testpmd:tekton'
+  - name: path-to-dockerfile
+    value: ""
+  - name: path-to-image-context
+    value: ""
+  - name: auth-username
+    value: "robot"
+  - name: auth-url
+    value: 'https://api.cnf10.kni.lab.eng.bos.redhat.com:6443'
+  - name: auth-token
+    value: YOUR_TOKEN
+  - name: auth-name
+    value: "cluster-cnf10"
+  - name: auth-namespace
+    value: "deploy-testpmd"
+  - name: builder-image
+    value: 'registry.redhat.io/openshift4/dpdk-base-rhel8'
+  pipelineRef:
+    name: dpdk-build-testpmd
+  serviceAccountName: pipeline
+  timeout: 1h0m0s
+  workspaces:
+  - name: git-source
+    persistentVolumeClaim:
+      claimName: pvc-testpmd
+status: {}
