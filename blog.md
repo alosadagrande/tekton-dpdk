@@ -260,7 +260,7 @@ $ oc create -f  pipeline-task-oc-client-remote.yaml -n dpdk-build-testpmd
 task.tekton.dev/openshift-client-cluster created
 ```
 
-Once all the `Tasks` are defined, it is time to create the [pipeline-dpdk-testpmd.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/beta/resources/tekton-pipeline/pipeline-dpdk-testpmd.yaml) `Pipeline` that includes all of them in a single workflow. As you may notice, the five `Tasks` explained are defined in the _spec_ field. 
+Once all the `Tasks` are defined, it is time to create the [pipeline-dpdk-testpmd.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/beta/resources/tekton-pipeline/pipeline-dpdk-testpmd.yaml) `Pipeline` that includes all of them in a single workflow. As you may notice, the four `Tasks` explained are defined in the _spec_ field. 
 
 > :exclamation: Notice that it is possible to define parameters inside the tasks, so it makes the pipeline more re-usable.
 
@@ -373,51 +373,76 @@ pipeline.tekton.dev/dpdk-build-testpmd created
 A pretty good description of the pipeline components can be shown using the Tekton CLI (tkn):
 
 ```sh
-$ tkn p describe dpdk-build-testpmd
+$ tkn pipeline describe dpdk-build-testpmd
 Name:        dpdk-build-testpmd
 Namespace:   dpdk-build-testpmd
 
 📦 Resources
 
- NAME                        TYPE
- ∙ cnf10-cluster             cluster
- ∙ git-testpmd               git
- ∙ image-push-quay-testpmd   image
+ No resources
 
 ⚓ Params
 
- No params
+ NAME                      TYPE     DESCRIPTION   DEFAULT VALUE
+ ∙ git-url                 string                 ---
+ ∙ git-revision            string                 ---
+ ∙ image-name              string                 ---
+ ∙ path-to-image-context   string                 ---
+ ∙ path-to-dockerfile      string                 ---
+ ∙ auth-token              string                 ---
+ ∙ auth-username           string                 ---
+ ∙ auth-url                string                 ---
+ ∙ auth-name               string                 ---
+ ∙ auth-namespace          string                 ---
+ ∙ builder-image           string                 ---
 
 🗒  Tasks
 
- NAME               TASKREF                    RUNAFTER
- ∙ build-testpmd    s2i                        
- ∙ deploy-testpmd   openshift-client-cluster   build-testpmd
+ NAME                  TASKREF                    RUNAFTER
+ ∙ fetch-from-git      git-clone                  
+ ∙ build-testpmd       s2i-cnf                    fetch-from-git
+ ∙ create-kubeconfig   kubeconfig-creator         build-testpmd
+ ∙ deploy-testpmd      openshift-client-cluster   create-kubeconfig
 
 ⛩  PipelineRuns
- No pipelineruns
 ```
+
+> :exclamation: Notice that there are no resources (`PipelineResources`) created in our pipeline. So, their functionality has been migrated to Tasks.
+
 
 ### Adding Triggers to the Pipeline
 
-At this point, you may be able to create a `PipelineRun` ([pipelinerun-dpdk-testpmd-oc.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/tekton-pipeline/pipelinerun-dpdk-testpmd-oc.yaml)) and execute the workflow defined. 
+At this point, you may be able to create a `PipelineRun` ([pipelinerun-dpdk-testpmd.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/beta/resources/tekton-pipeline/pipelinerun-dpdk-testpmd.yaml)) and execute the workflow defined. 
+
+**NOTE:** Replace the values of the params with your environment configuration. Remember to include robot's authentication [TOKEN](#cnf-cluster-configuration).
 
 ```sh
-$ oc create -f pipelinerun-dpdk-testpmd-oc.yaml 
-pipelinerun.tekton.dev/dpdk-build-testpmd-run-rf6mg created
+$ oc create -f pipelinerun-dpdk-testpmd.yaml 
+pipelinerun.tekton.dev/dpdk-build-testpmd-ws-run-dxq94created
 
-$ tkn pr logs -f dpdk-build-testpmd-run-rf6mg
-[build-testpmd : git-source-git-testpmd-x67jd] {"level":"info","ts":1595231279.2543507,"caller":"git/git.go:105","msg":"Successfully cloned https://github.com/alosadagrande/testpmd.Git @ master in path /workspace/source"}
-[build-testpmd : git-source-git-testpmd-x67jd] {"level":"warn","ts":1595231279.2544188,"caller":"git/git.go:152","msg":"Unexpected error: creating symlink: symlink /tekton/home/.ssh /root/.ssh: file exists"}
-[build-testpmd : git-source-git-testpmd-x67jd] {"level":"info","ts":1595231279.324318,"caller":"git/git.go:133","msg":"Successfully initialized and updated submodules in path /workspace/source"}
+$ tkn pr logs -f dpdk-build-testpmd-ws-run-dxq94
+Pipelinerun started: dpdk-build-testpmd-ws-run-dxq94
+Waiting for logs to be available...
+[fetch-from-git : clone] + CHECKOUT_DIR=/workspace/output/
+[fetch-from-git : clone] + '[[' true '==' true ]]
+[fetch-from-git : clone] + cleandir
+[fetch-from-git : clone] + '[[' -d /workspace/output/ ]]
+[fetch-from-git : clone] + rm -rf /workspace/output//README.md /workspace/output//build.sh /workspace/output//kubeconfig /workspace/output//run.sh /workspace/output//test-pmd /workspace/output//test-template.sh
+[fetch-from-git : clone] + test -z 
+[fetch-from-git : clone] + /ko-app/git-init -url https://github.com/alosadagrande/testpmd.git -revision master -refspec  -path /workspace/output/ '-sslVerify=true' '-submodules=true' -depth 1
+[fetch-from-git : clone] {"level":"info","ts":1595947048.1077354,"caller":"git/git.go:136","msg":"Successfully cloned https://github.com/alosadagrande/testpmd.git @ 1c419fd631152a2b81593ace2c7714fc8b6a19d4 (grafted, HEAD, origin/master) in path /workspace/output/"}
+[fetch-from-git : clone] {"level":"info","ts":1595947048.1510515,"caller":"git/git.go:177","msg":"Successfully initialized and updated submodules in path /workspace/output/"}
 
+[build-testpmd : generate] Running S2I version "unknown"
+[build-testpmd : generate] Copying sources from "." to "/gen-source/upload/src"
 [build-testpmd : generate] Application dockerfile generated in /gen-source/Dockerfile.gen
 
 [build-testpmd : build] STEP 1: FROM registry.redhat.io/openshift4/dpdk-base-rhel8
+[build-testpmd : build] Getting image source signatures
+[build-testpmd : build] Copying blob sha256:a757589d62994e495d9a19fd0568eef9d50beabd29b25f5ef85566c7f03a6333
 ...
 ```
-
-However, we want to provide a real continuous deployment pipeline. Then, as explained in [Scenario](#Scenario), the pipeline must be automatically launched every time a new code is pushed to the master branch of testPMD Git repository. We assume that pushing code to the master branch means: it is ready for production. 
+However, we want to provide a real continuous deployment pipeline. Then, as explained in [Scenario](#scenario), the pipeline must be automatically launched every time a new code is pushed to the master branch of testPMD Git repository. We assume that pushing code to the master branch means: it is ready for production. 
 
 [Tekton Triggers](https://github.com/tektoncd/triggers) provides a mechanism to declaratively create `PipelineRuns` based on external events. They implement a system for creating Kubernetes resources in response to external events, mostly in the form of **webhooks**. These events allow users to create resource templates that get instantiated when an event is received. Additionally, fields from event payloads can be injected into these resource templates as runtime information. 
 

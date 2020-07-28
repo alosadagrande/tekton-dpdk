@@ -16,6 +16,7 @@ spec:
   - name: auth-name
   - name: auth-namespace
   - name: builder-image
+  - name: git-sslverify
   workspaces:
   - name: git-source
   tasks:
@@ -30,6 +31,8 @@ spec:
       value: $(params.git-revision)
     - name: deleteExisting
       value: "true"
+    - name: sslVerify
+      value: $(params.git-sslverify)
     workspaces:
     - name: output
       workspace: git-source
@@ -42,8 +45,8 @@ spec:
     - name: TLSVERIFY
       value: "false"
     - name: LOGLEVEL
-      value: "10"
-    - name: "IMAGE_URL"  
+      value: "1"
+    - name: IMAGE_URL
       value: $(params.image-name)
     workspaces:
     - name: source

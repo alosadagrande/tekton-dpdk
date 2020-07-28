@@ -9,6 +9,8 @@ spec:
     value: "master"
   - name: git-url
     value: 'https://github.com/alosadagrande/testpmd.git'
+  - name: git-sslverify
+    value: "false"
   - name: image-name
     value: 'quay.io/alosadag/testpmd:tekton'
   - name: path-to-dockerfile
