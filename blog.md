@@ -1,4 +1,4 @@
-# Introduction
+# Building Cloud-native Network Functions with OpenShift Pipelines
 
 You've probably heard about the fifth-generation technology standard for cellular networks (5G) or edge computing, and the potential to change the world and affect our lives. This new technology will support billions of devices with almost no latency at speeds around 20 times faster than its predecessor. Now, think about the Internet of Things (IoT), Telemedicine, Virtual Reality (VR), Autonomous Cars, Faster Gaming... Apologies for interrupting, but let's put aside for a moment our imagination and dig into the technology required to satisfy our dreams. 
 
@@ -405,7 +405,7 @@ Namespace:   dpdk-build-testpmd
 
 At this point, you may be able to create a `PipelineRun` ([pipelinerun-dpdk-testpmd.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/beta/resources/tekton-pipeline/pipelinerun-dpdk-testpmd.yaml)) and execute the workflow defined. 
 
-**NOTE:** Replace the values of the params with your environment configuration. Remember to include robot's authentication [TOKEN](#cnf-cluster-configuration).
+>:exclamation: Replace the values of the params with your environment configuration. Remember to include robot's authentication [TOKEN](#cnf-cluster-configuration).
 
 ```sh
 $ oc create -f pipelinerun-dpdk-testpmd.yaml 
@@ -441,7 +441,7 @@ The Tekton Triggers project defines three main concepts (as Kubernetes CRDs). Th
 
 ![Tekton triggers CRDs](./content/Tekton_triggers_resources.png)
 
-A `TriggerTemplate` defines a Template for how a Pipeline should be executed in reaction to events. When an event is received by our EventListener, the TriggerTemplate is rendered by extracting parameter values (eg: Git repository URL, revision, etc.) from the event payload. This will result in the creation of a new `PipelineRun`. As you can see in the [TriggerTemplate file](https://github.com/alosadagrande/tekton-dpdk/blob/beta/resources/tekton-triggers/triggertemplate.yaml), all the parameters defined in the Pipeline]([pipeline-dpdk-testpmd.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/beta/resources/tekton-pipeline/pipeline-dpdk-testpmd.yaml)) are populated either from the event payload or from the `TriggerBinding` file.
+A `TriggerTemplate` defines a Template for how a Pipeline should be executed in reaction to events. When an event is received by our EventListener, the TriggerTemplate is rendered by extracting parameter values (eg: Git repository URL, revision, etc.) from the event payload. This will result in the creation of a new `PipelineRun`. As you can see in the [TriggerTemplate file](https://github.com/alosadagrande/tekton-dpdk/blob/beta/resources/tekton-triggers/triggertemplate.yaml), all the parameters defined in the Pipeline([pipeline-dpdk-testpmd.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/beta/resources/tekton-pipeline/pipeline-dpdk-testpmd.yaml)) are populated either from the event payload or from the `TriggerBinding` file.
 
 ```yaml
 apiVersion: triggers.tekton.dev/v1alpha1
@@ -583,7 +583,7 @@ A [Route](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/tri
 Lastly, validate the CD pipeline. In the [video recording](http://www.youtube.com/watch?v=Om_Ob1kDI6A), you can see that every change pushed into the master branch of testPMD repository will fire our workflow:
 
 
-[![Verification of the pipeline](http://img.youtube.com/vi/Om_Ob1kDI6A/0.jpg)](http://www.youtube.com/watch?v=Om_Ob1kDI6A "DPDK application built using OpenShift Pipelines based on Tekton")
+[![Verification of the pipeline](http://img.youtube.com/vi/Om_Ob1kDI6A/0.jpg)](https://www.youtube.com/watch?v=cx34XeLUJV8 "Building Cloud-native Network Functions with OpenShift Pipelines")
 
 
 # References
