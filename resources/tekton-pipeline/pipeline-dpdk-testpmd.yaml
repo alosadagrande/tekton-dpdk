@@ -17,6 +17,7 @@ spec:
   - name: auth-namespace
   - name: builder-image
   - name: git-sslverify
+  - name: oc-args
   workspaces:
   - name: git-source
   tasks:
@@ -82,7 +83,7 @@ spec:
       value: oc $@
     - name: ARGS
       value:
-      - rollout latest dc/testpmd
+      - $(params.oc-args)
     - name: NAMESPACE
       value: $(params.auth-namespace)
     - name: FILENAME 

@@ -28,6 +28,8 @@ spec:
     description: Default namespace in the remote cluster
   - name: PATH_TO_DOCKERFILE
   - name: PATH_TO_IMAGE_CONTEXT
+  - name: OC_ARGS
+    description: Remote oc commands applied
   resourcetemplates:
   - apiVersion: tekton.dev/v1beta1
     kind: PipelineRun
@@ -59,9 +61,11 @@ spec:
       - name: auth-namespace
         value: $(params.AUTH_NAMESPACE)
       - name: path-to-dockerfile
-        value: $(param.PATH_TO_DOCKERFILE)
+        value: $(params.PATH_TO_DOCKERFILE)
       - name: path-to-image-context
-        value: $(param.PATH_TO_IMAGE_CONTEXT)
+        value: $(params.PATH_TO_IMAGE_CONTEXT)
+      - name: oc-args
+        value: $(params.OC_ARGS)
       serviceAccountName: $(params.SERVICE_ACCOUNT)
       timeout: 1h0m0s
       workspaces:
