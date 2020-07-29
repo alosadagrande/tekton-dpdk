@@ -580,10 +580,10 @@ A [Route](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/tri
 
 # Validation
 
-Lastly, validate the CD pipeline. In the [video recording](http://www.youtube.com/watch?v=Om_Ob1kDI6A), you can see that every change pushed into the master branch of testPMD repository will fire our workflow:
+Lastly, validate the CD pipeline. In the [video recording](https://www.youtube.com/watch?v=cx34XeLUJV8), you can see that every change pushed into the master branch of testPMD repository will fire our workflow:
 
 
-[![Verification of the pipeline](http://img.youtube.com/vi/Om_Ob1kDI6A/0.jpg)](https://www.youtube.com/watch?v=cx34XeLUJV8 "Building Cloud-native Network Functions with OpenShift Pipelines")
+[![Verification of the pipeline](http://img.youtube.com/vi/cx34XeLUJV8/0.jpg)](https://www.youtube.com/watch?v=cx34XeLUJV8 "Building Cloud-native Network Functions with OpenShift Pipelines")
 
 
 # References
