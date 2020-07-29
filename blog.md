@@ -1,4 +1,4 @@
-Alberto Losada Grande, Sergi Jiménez
+Alberto Losada, Sergi Jiménez
 
 # Building CNF applications with OpenShift Pipelines
 
