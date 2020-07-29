@@ -276,6 +276,8 @@ spec:
   - name: auth-name
   - name: auth-namespace
   - name: builder-image
+  - name: git-sslverify
+  - name: oc-args
   workspaces:
   - name: git-source
   tasks:
@@ -290,6 +292,8 @@ spec:
       value: $(params.git-revision)
     - name: deleteExisting
       value: "true"
+    - name: sslVerify
+      value: $(params.git-sslverify)
     workspaces:
     - name: output
       workspace: git-source
@@ -302,8 +306,8 @@ spec:
     - name: TLSVERIFY
       value: "false"
     - name: LOGLEVEL
-      value: "10"
-    - name: "IMAGE_URL"  
+      value: "1"
+    - name: IMAGE_URL
       value: $(params.image-name)
     workspaces:
     - name: source
@@ -339,7 +343,7 @@ spec:
       value: oc $@
     - name: ARGS
       value:
-      - rollout latest dc/testpmd
+      - $(params.oc-args)
     - name: NAMESPACE
       value: $(params.auth-namespace)
     - name: FILENAME 
@@ -476,6 +480,8 @@ spec:
     description: Default namespace in the remote cluster
   - name: PATH_TO_DOCKERFILE
   - name: PATH_TO_IMAGE_CONTEXT
+  - name: OC_ARGS
+    description: Remote oc commands applied
   resourcetemplates:
   - apiVersion: tekton.dev/v1beta1
     kind: PipelineRun
@@ -507,9 +513,11 @@ spec:
       - name: auth-namespace
         value: $(params.AUTH_NAMESPACE)
       - name: path-to-dockerfile
-        value: $(param.PATH_TO_DOCKERFILE)
+        value: $(params.PATH_TO_DOCKERFILE)
       - name: path-to-image-context
-        value: $(param.PATH_TO_IMAGE_CONTEXT)
+        value: $(params.PATH_TO_IMAGE_CONTEXT)
+      - name: oc-args
+        value: $(params.OC_ARGS)
       serviceAccountName: $(params.SERVICE_ACCOUNT)
       timeout: 1h0m0s
       workspaces:
@@ -557,6 +565,8 @@ spec:
     value: ''
   - name: PATH_TO_DOCKERFILE
     value: ''
+  - name: OC_ARGS
+    value: 'replace -f https://raw.githubusercontent.com/alosadagrande/tekton-dpdk/beta/resources/cnf-cluster/deployment-testpmd.yaml --force'
 ```
 
 The [EventListener file](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/tekton-triggers/eventlistener.yaml) defines a list of triggers. Each trigger pairs a `TriggerTemplate` with a number of `TriggerBindings`. 
