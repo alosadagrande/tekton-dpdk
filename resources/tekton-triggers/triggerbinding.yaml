@@ -8,15 +8,28 @@ spec:
     value: $(body.repository.git_http_url)
   - name: REVISION
     value: $(body.checkout_sha)
-  - name: DEPLOYMENT
-    value: testpmd
+  - name: GIT_SSLVERIFY
+    value: "false"
   - name: SERVICE_ACCOUNT
-    value: pipeline
-  - name: TAG
-    value: tekton
-  - name: DEPLOY_CLUSTER_URL
+    value: "pipeline"
+  - name: AUTH_NAME
+    value: "cluster-cnf10"
+  - name: AUTH_USERNAME
+    value: "robot"
+  - name: AUTH_URL
     value: 'https://api.cnf10.kni.lab.eng.bos.redhat.com:6443'
-  - name: TOKEN
-    value: 'REPLACE WITH YOUR TOKEN VALUE'
-    - name: CADATA
-    value: 'REPLACE WITH YOUR CADATA VALUE'
+  - name: AUTH_TOKEN
+    value: 'eyJhbGciOiJSUzI1NiIsImtpZCI6ImxGSHhiMHNQcXZicWdaTlBPcjR4TThvSkNocnYtM29JMm1STmQ2OWNZRU0ifQ.eyJpc3MiOiJrdWJlcm5ldGVzL3NlcnZpY2VhY2NvdW50Iiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9uYW1lc3BhY2UiOiJkZXBsb3ktdGVzdHBtZCIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VjcmV0Lm5hbWUiOiJyb2JvdC10b2tlbi1ma2g2cCIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VydmljZS1hY2NvdW50Lm5hbWUiOiJyb2JvdCIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VydmljZS1hY2NvdW50LnVpZCI6IjJlM2ExOTI1LWY1NDAtNDU4Yy1iNmViLWM4ZTYzOWVmMDgwOSIsInN1YiI6InN5c3RlbTpzZXJ2aWNlYWNjb3VudDpkZXBsb3ktdGVzdHBtZDpyb2JvdCJ9.mGaxEZzsIKUxlqqc-TSbKsTC5WPElP0y14n4FQ3REaF9qmTeuG6nbmWl39dpYGzQR8wG1KtovqN3cEvqzfRW2rW0P6sTFRWwHfJOjDybH9z9MruIzcZ4UCBLj0gy7y1N7eZmsxrKBAbDXWZWcWkQHrDC9ZpZ3QmwAgBOCCFVv3VnkfTA1KHychE-AwVbM51NUFCQggJ4b_FLzI69tk60Zv54_y1m1ow_wtn3Pg20pJV0WyLKqQsFkR7MFL6GCYsMjxMHHsCUSgrqb23_7Phjcn7jN72iytuSx8OeatOF4g-tLeIgMpERPRXqSkRIP17xjaw4Jwqzpm1CAo02TFIxBg'
+  - name: AUTH_NAMESPACE
+    value: "deploy-testpmd"
+  - name: BUILDER_IMAGE
+    value: 'registry.redhat.io/openshift4/dpdk-base-rhel8'
+  - name: IMAGE_URL
+    value: 'quay.io/alosadag/testpmd:tekton'
+  - name: PATH_TO_IMAGE_CONTEXT
+    value: ''
+  - name: PATH_TO_DOCKERFILE
+    value: ''
+  - name: OC_ARGS
+    value: 'replace -f https://raw.githubusercontent.com/alosadagrande/tekton-dpdk/beta/resources/cnf-cluster/deployment-testpmd.yaml --force'
+
