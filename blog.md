@@ -438,7 +438,7 @@ However, we want to provide a real continuous deployment pipeline. Then, as expl
 
 [Tekton Triggers](https://github.com/tektoncd/triggers) provides a mechanism to declaratively create `PipelineRuns` based on external events. They implement a system for creating Kubernetes resources in response to external events, mostly in the form of **webhooks**. These events allow users to create resource templates that get instantiated when an event is received. Additionally, fields from event payloads can be injected into these resource templates as runtime information. 
 
-The Tekton Triggers project defines three main concepts (as Kubernetes CRDs). These are `TriggerBindings`, `TriggerTemplates`, and `EventListeners`. Below image, from [2](#References), depicts the interaction among them:
+The Tekton Triggers project defines three main concepts (as Kubernetes CRDs). These are `TriggerBindings`, `TriggerTemplates`, and `EventListeners`. Below image, from [[2]](#References), depicts the interaction among them:
 
 ![Tekton triggers CRDs](./content/Tekton_triggers_resources.png)
 
