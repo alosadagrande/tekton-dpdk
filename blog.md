@@ -595,10 +595,9 @@ Lastly, we must validate the CD pipeline. In this [video](https://www.youtube.co
 
 This article outlined how to build CNF applications leveraging cloud-native CI/CD tools like OpenShift Pipelines. The intent of this blog post was to demonstrate that applications that have high-performance networking requirements can be **deployed and built natively** in OpenShift Container Platform. 
 
-OpenShift is moving fast to welcome on board deterministic and low latency applications, which are usual in the telco space. Technologies like SR-IOV, Multus, DPDK, FPGA, GPU, huge pages, CPU isolation, NUMA affinity, Real-time kernel... are already supported or they are in the process of being supported, currently as Developer or Technology Preview. Stay tuned for the forthcoming OpenShift releases!
+OpenShift is moving fast to welcome on board deterministic and low latency applications, which are usual in the telco space. Concepts and technologies like _SR-IOV_, _Multus_, _DPDK_, _FPGA_, _GPU_, _huge pages_, _CPU isolation_, _NUMA affinity_, _Real-time kernel_... are already supported or they are in the process of being supported, currently as Developer or Technology Preview. Stay tuned for the forthcoming OpenShift releases!
 
 On the other hand, if your workloads are not that specific in terms of network performance, OpenShift Pipelines based on Tekton can still be very helpful as a framework for creating your automated pipelines on top of your OpenShift cluster. In this article, we have built a CNF application using a DPDK base image, however, it will not be difficult to adapt the same pipeline to build a completely different application based on a different technology. Notice that the `Pipeline` and `TriggerTemplate` files defined were highly parametrized to facilitate the reusability. Now, it is your turn to adjust the ideas explained here to your special needs.  
-
 
 ## References
 
