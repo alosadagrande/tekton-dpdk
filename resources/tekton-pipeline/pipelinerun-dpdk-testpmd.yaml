@@ -30,7 +30,7 @@ spec:
   - name: builder-image
     value: 'registry.redhat.io/openshift4/dpdk-base-rhel8'
   - name: oc-args
-    value: 'replace -f https://raw.githubusercontent.com/alosadagrande/tekton-dpdk/beta/resources/cnf-cluster/deployment-testpmd.yaml --force'
+    value: 'replace -f https://raw.githubusercontent.com/alosadagrande/tekton-dpdk/master/resources/cnf-cluster/deployment-testpmd.yaml --force'
   pipelineRef:
     name: dpdk-build-testpmd
   serviceAccountName: pipeline

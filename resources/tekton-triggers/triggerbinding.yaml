@@ -31,5 +31,5 @@ spec:
   - name: PATH_TO_DOCKERFILE
     value: ''
   - name: OC_ARGS
-    value: 'replace -f https://raw.githubusercontent.com/alosadagrande/tekton-dpdk/beta/resources/cnf-cluster/deployment-testpmd.yaml --force'
+    value: 'replace -f https://raw.githubusercontent.com/alosadagrande/tekton-dpdk/master/resources/cnf-cluster/deployment-testpmd.yaml --force'
 
