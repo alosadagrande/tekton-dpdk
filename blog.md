@@ -2,6 +2,8 @@ Alberto Losada, Sergi Jiménez
 
 # Building CNF applications with OpenShift Pipelines
 
+# Introduction
+
 You've probably heard about the fifth-generation technology standard for cellular networks (5G) or edge computing, and the potential to change the world and affect our lives. This new technology will support billions of devices with almost no latency at speeds around 20 times faster than its predecessor. Now, think about the Internet of Things (IoT), Telemedicine, Virtual Reality (VR), Autonomous Cars, Faster Gaming... Apologies for interrupting, but let's put aside for a moment our imagination and dig into the technology required to satisfy our dreams.
 
 All of these technologies and applications often demand very high-performance requirements for both throughput, latency, and efficiency. This means that a compilation of multiple features is required for adequate utilization of the underlying platform capabilities when deploying **deterministic** applications. Some examples of these required network features are [Multus CNI](https://github.com/intel/multus-cni), [SR-IOV](https://en.wikipedia.org/wiki/Single-root_input/output_virtualization) and [Data Plane Development Kit (DPDK)](https://www.dpdk.org/). They are elements of what is called **Containerized Network Functions** or **Cloud-native Network Functions** (CNFs).
@@ -12,15 +14,15 @@ Before talking about CNFs, it is important to first understand [Network Function
 
 In a generic Kubernetes application, the single networking interface provided by a Pod (eth0) is sufficient for most purposes. It even can be extended using CNI plugins available. However, in cases where low latency and high network performance is a must, we need a way of providing additional network interfaces to the Pod which has direct access to the hardware (NIC). Then, the application can communicate with the hardware which delivers these high capacities outside of the standard Kubernetes networking. This is why we start talking about CNFs and ways to accelerate them.
 
-In the OpenShift blog, we already presented and ["demystified" Multus](https://www.openshift.com/blog/demystifying-multus) by showing their deep relation with SR-IOV technology when dealing with high-performance networking workloads. Basically, **Multus** enables our application to attach to a virtual function (VF) interface presented by an SR-IOV capable NIC on the Kubernetes Node. This will permit us to achieve near-native networking performance. The [SR-IOV Operator](https://docs.openshift.com/container-platform/4.5/networking/hardware_networks/about-sriov.html) became GA on OpenShift 4.3, so information on how to [install](https://docs.openshift.com/container-platform/4.5/networking/hardware_networks/installing-sriov-operator.html) and [configure](https://docs.openshift.com/container-platform/4.5/networking/hardware_networks/configuring-sriov-operator.html) it can be found in the official documentation.
+In the OpenShift blog, we already presented and ["demystified" Multus](https://www.openshift.com/blog/demystifying-multus) by showing their deep relation with SR-IOV technology when dealing with high-performance networking workloads. **Multus** enables our application to attach to a virtual function (VF) interface presented by an SR-IOV capable NIC on the OpenShift node. This permit us to achieve near-native networking performance. The [SR-IOV Operator](https://docs.openshift.com/container-platform/4.5/networking/hardware_networks/about-sriov.html) became GA on OpenShift 4.3, so information on how to [install](https://docs.openshift.com/container-platform/4.5/networking/hardware_networks/installing-sriov-operator.html) and [configure](https://docs.openshift.com/container-platform/4.5/networking/hardware_networks/configuring-sriov-operator.html) it can be found in the official documentation.
 
 ![SR-IOV and Multus diagram](./content/Demystifying-Multus-4.webp)
 
 ## Data Plane Development Kit (DPDK)
 
-[DPDK](https://www.dpdk.org/) is a set of libraries and drivers for Linux and BSD built to accelerate packet processing workloads designed to run on x86, POWER and ARM processors. DPDK offers offloading TCP packet processing from the operating system Kernel space to process them in the User space to obtain a high performant and deterministic system.
+The third component we already mentioned is [DPDK](https://www.dpdk.org/). DPDK is a set of libraries and drivers for Linux and BSD built to accelerate packet processing workloads designed to run on x86, POWER and ARM processors. DPDK offers offloading TCP packet processing from the operating system Kernel space to process them in the User space to obtain a high performant and deterministic system.
 
-DPDK libraries offer to free up the Kernel space from interrupts by processing the work in User space instead. This is possible thanks to the DPDK libraries and the DPDK poll mode driver (PMD). This driver is responsible for the communication between the application and network card, listening in a loop avoiding as much as possible interrupts while forwarding packets. The diagram below streamlines the idea:
+DPDK libraries offer to free up the Kernel space from interrupts by processing the work in User space instead. This is possible thanks to the DPDK libraries and the DPDK poll mode driver (PMD). This driver is responsible for the communication between the application and network card, listening in a loop avoiding as much as possible interrupts while forwarding packets. The diagram from [1](#References) streamlines the idea:
 
 ![Networking using DPDK libraries](./content/kernel-user-space.png)
 
@@ -30,9 +32,9 @@ In OpenShift 4.5, as _Technology Preview_, it is possible to use the DPDK librar
 
 # Scenario
 
-_The goal is to create an automated pipeline that allows us to get the code, build and deploy a DPDK application in a multi-cluster environment_. 
+_The goal is to create an automated pipeline to get the code, build it using Red Hat's DPDK base image, and deploy the CNF application in a multi-cluster environment_.
 
-In this task, a continuous deployment process driven by Cloud-native CI/CD on OpenShift called [OpenShift Pipelines](https://docs.openshift.com/container-platform/4.5/pipelines/understanding-openshift-pipelines.html) will assist us. As an example application that requires DPDK libraries, we are going to build [testPMD](https://doc.dpdk.org/guides/testpmd_app_ug/). TestPMD is an application used to test DPDK in a packet forwarding mode and also to access NIC hardware features such as Flow Director. 
+In this task, a **continuous deployment** (CD) process driven by cloud-native CI/CD on OpenShift called [OpenShift Pipelines](https://docs.openshift.com/container-platform/4.5/pipelines/understanding-openshift-pipelines.html) will assist us. As an example application that requires DPDK libraries and Multus/SR-IOV, we are going to build [testPMD](https://doc.dpdk.org/guides/testpmd_app_ug/). TestPMD is an application used to test DPDK in a packet forwarding mode and also to access NIC hardware features such as Flow Director. 
 
 > :exclamation: testPMD is only provided as a simple example of how to build a more fully-featured application using the DPDK base image.
 
@@ -43,16 +45,16 @@ The pipeline will be in charge of:
 * Starting the pipeline every time code is pushed into the master branch of the testPMD Git repository.
 * Pulling testPMD source code from the Git repository where the webhook was triggered.
 * Pulling the DPDK base image from Red Hat's catalog image registry.
-* Building the application using S2i strategy. Specific S2i scripts that describe how our application must be built are stored in same Git repository.
-* Pushing the resulting image to a public registry such as Quay.io. 
-* Deploying the new version of the application into the proper project running in another cluster, the CNF OpenShift cluster.
+* Building the application using [Source-to-Image (S2I)](https://github.com/openshift/source-to-image) strategy.
+* Pushing the resulting image to a container public registry such as Quay.io. 
+* Automatically deploying the new version of the application into the proper project running in another cluster, the CNF OpenShift cluster.
 
 
 # Environment
 
 To create the containerized application, we require:
 
-* An OpenShift Container Platform 4.5 cluster where the application is built. This cluster will be called Development cluster.
+* An OpenShift Container Platform 4.5 cluster where the application is built. This cluster will be called _Development cluster_.
 * [OpenShift Pipelines](https://www.openshift.com/learn/topics/pipelines) based on [Tekton](https://tekton.dev/) installed as the CI/CD tool. OpenShift Pipelines Operator v1.0.1 is available to install from OpenShift's OperatorHub.
 * Demo files:
   * [Demo Repository](https://github.com/alosadagrande/tekton-dpdk)
@@ -63,22 +65,22 @@ If you are just planning to automate the application building process, the prior
 
 In the event you also plan to deploy the built application, you need to be aware that DPDK requires huge pages along with SR-IOV configuration properly enabled. Observe that SR-IOV supported devices are required. In that case, you need as well:
 
-* An OpenShift Container Platform 4.5 cluster, which we call CNF cluster, where the application is deployed.
+* An OpenShift Container Platform 4.5 cluster, which we call _CNF cluster_, where the application is deployed.
 
 > :warning: Notice that it is not mandatory to deploy the application in another cluster, but in our multi-cluster scenario, there is a separation between the Development cluster and the CNF or production cluster. 
 
+* Huge pages configured within the node where the application is deployed. A detailed procedure can be found in [Configuring huge pages](https://docs.openshift.com/container-platform/4.5/scalability_and_performance/what-huge-pages-do-and-how-they-are-consumed-by-apps.html).
 * An SR-IOV capable node inside the CNF OpenShift cluster. In our environment, we have a node with several Mellanox MT27800 Family [ConnectX-5] 25GbE dual-port SFP28 Network Interface Cards (NICs). Take a look at [this table](https://docs.openshift.com/container-platform/4.5/networking/hardware_networks/about-sriov.html) with all the supported SR-IOV NIC models.
 * [SR-IOV Nework operator](https://docs.openshift.com/container-platform/4.5/networking/hardware_networks/installing-sriov-operator.html) installed and running successfully. SR-IOV devices must be properly detected and configured.
 
-> :exclamation: If you do not have an SR-IOV supported device, you still can run the OpenShift pipeline and build the example DPDK application. 
+> :exclamation: If you do not have an SR-IOV supported device, you still can run the OpenShift pipeline and build the example CNF application. 
 
-* Huge pages configured within the node where the application is deployed. A detailed procedure can be found in [Configuring huge pages](https://docs.openshift.com/container-platform/4.5/scalability_and_performance/what-huge-pages-do-and-how-they-are-consumed-by-apps.html).
 
 ## CNF cluster configuration
 
-This cluster is configured to run DPDK and SR-IOV workloads. It is also going to run every new release of the testPMD application pushed successfully to Quay.io container image registry. On the hardware side, it has a couple of SR-IOV capable nodes and configured using the SR-IOV operator. Huge pages and other performance profiles have been already applied. So it is ready, to run DPDK workloads. 
+This cluster is configured to run DPDK and SR-IOV workloads. It is also going to run every new release of the testPMD application pushed successfully to Quay.io container image registry. On the hardware side, it has a couple of SR-IOV capable nodes and configured using the SR-IOV operator. Huge pages and other performance profiles have been already applied. So it is ready, to run CNF workloads. 
 
-Since it is going to run the DPDK application, let's create the project where all required Kubernetes objects are placed:
+Since it is going to run the CNF application, let's create the project where all required OpenShift objects are placed:
 
 ```sh
 $ oc new-project deploy-testpmd
@@ -114,7 +116,7 @@ Robot's credentials must be extracted. They will be needed when creating the pip
 $ export TOKEN=$(oc serviceaccounts get-token robot -n deploy-testpmd)
 ```
 
-## Development cluster configuration
+### Development cluster configuration
 
 This cluster is in charge of running the DPDK application pipeline. It can be seen as an OpenShift cluster focused on development, _a central point where all the different teams within a company create and configure their automated builds, deployments or pipelines in general_.
 
@@ -149,7 +151,7 @@ Finally, link the secret with the **pipeline** service account, which, by defaul
 $ oc secret link pipeline secret-registries
 ```
 
-# OpenShift Pipelines (Tekton)
+## OpenShift Pipelines (Tekton)
 
 OpenShift Pipelines is a powerful tool for building continuous delivery pipelines using modern infrastructure. The core component runs as a controller in OpenShift. It registers several custom resource definitions (CRDs) which represent the basic Tekton objects with the Kubernetes API server, so the cluster knows to delegate requests containing those objects to Tekton. These primitives are fundamental to the way Tekton works, once you have OpenShift Pipelines Operator installed you can list them:
 
@@ -590,18 +592,18 @@ Finally, create the proper RBAC configuration so that the `EventListener` Pod ca
 
 A [Route](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/triggers/route.yaml) must be exposed as well, so that the remote Git repository can send events to our Development OpenShift cluster.
 
-# Validation
+## Validation
 
 Lastly, validate the CD pipeline. In the [video recording](https://www.youtube.com/watch?v=cx34XeLUJV8), you can see that every change pushed into the master branch of testPMD repository will fire our workflow:
 
 
 [![Verification of the pipeline](http://img.youtube.com/vi/cx34XeLUJV8/0.jpg)](https://www.youtube.com/watch?v=cx34XeLUJV8 "Building Cloud-native Network Functions with OpenShift Pipelines")
 
-# Summary
+## Summary
 
 In this blog post it has been exposed how to leverage a  Cloud Native CI/CD OpenShift Pipelines to create an automated Continuous Deployment pipeline to deploy a high performant application that Containerized Network Functions such as DPDK, Multus and SR-IOV.
 
-# References
+## References
 
-* [Enhanced Platform Awareness (EPA) in OpenShift](https://medium.com/swlh/enhanced-platform-awareness-epa-in-openshift-part-iv-sr-iov-dpdk-and-rdma-1cc894c4b7d0) series of blog posts by Luis Arizmendi.
-* [Tekton Triggers 101](https://developer.ibm.com/tutorials/tekton-triggers-101/) by Brandon Walker.
+1. [Enhanced Platform Awareness (EPA) in OpenShift](https://medium.com/swlh/enhanced-platform-awareness-epa-in-openshift-part-iv-sr-iov-dpdk-and-rdma-1cc894c4b7d0) series of blog posts by Luis Arizmendi.
+2. [Tekton Triggers 101](https://developer.ibm.com/tutorials/tekton-triggers-101/) by Brandon Walker.
