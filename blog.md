@@ -225,6 +225,8 @@ spec:
       storage: 1Gi
 ```
 
+>:exclamation: It is also possible to define [`volumeClaimTemplate`](https://tekton.dev/docs/pipelines/workspaces/#using-persistentvolumeclaims-as-volumesource), which is a PVC template, that automatically creates a volume on every `PipelineRun` and deletes it when the `PipelineRun` is eliminated.
+
 Next, a **Source to Image** ([S2I](https://github.com/tektoncd/catalog/tree/master/task/s2i/0.1)) task is needed to build testPMD application along with DPDK builder image. Although there is a S2I `ClusterTask` already available in OpenShift, it makes use of `PipelineResources`. An adapted version of the shipped S2I called _s2i-cnf_ is created and available in [pipeline-task-s2i.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/tekton-pipeline/pipeline-task-s2i.yaml). This new task uses `Workspaces` instead of resources.
 
 ```sh
@@ -563,7 +565,7 @@ spec:
     value: 'replace -f https://raw.githubusercontent.com/alosadagrande/tekton-dpdk/master/resources/cnf-cluster/deployment-testpmd.yaml --force'
 ```
 
-The [EventListener file](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/tekton-triggers/eventlistener.yaml) defines a list of triggers. Each trigger pairs a `TriggerTemplate` with a number of `TriggerBindings`. Apply the file in _dpdk-build-testpmd_ namespace:
+The [EventListener file](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/tekton-triggers/eventlistener.yaml) defines a list of triggers. Each trigger pairs a `TriggerTemplate` with a number of `TriggerBindings`. Apply the file in the _dpdk-build-testpmd_ namespace:
 
 ```yaml
 apiVersion: triggers.tekton.dev/v1alpha1
@@ -582,7 +584,7 @@ spec:
 
 Finally, create the proper RBAC configuration so that the `EventListener` Pod can read all Tekton Triggers resources so that it can know what to do with each event. The [RBAC](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/tekton-triggers/rbac.yaml) file assigns the Role to the `pipeline` service account.
 
-A [Route](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/tekton-triggers/route.yaml) must be exposed as well, so that the remote Git repository can send events to our Development OpenShift cluster. Apply it in the proper namespace.
+A [Route](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/tekton-triggers/route.yaml) must be exposed as well so that the remote Git repository can send events to our Development OpenShift cluster. Apply it in the proper namespace.
 
 ## Validation
 
