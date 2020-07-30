@@ -46,7 +46,7 @@ The pipeline will be in charge of:
 * Pulling testPMD source code from the Git repository where the webhook was triggered.
 * Pulling the DPDK base image from Red Hat's catalog image registry.
 * Building the application using [Source-to-Image (S2I)](https://github.com/openshift/source-to-image) strategy.
-* Pushing the resulting image to a container public registry such as Quay.io. 
+* Pushing the resulting image to a container public registry such as [Quay.io](https://quay.io). 
 * Automatically deploying the new version of the application into the proper project running in another cluster, the CNF OpenShift cluster.
 
 
@@ -89,38 +89,30 @@ Using project "deploy-testpmd" on server "https://api.cnf10.kni.lab.eng.bos.redh
 
 > :exclamation: Project is created into the CNF OpenShift cluster (api.cnf10.)
 
-Next, create the [deployment-testpmd.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/cnf-cluster/deployment-testpmd.yaml) deployment. Notice that the application requests a guaranteed amount of CPU, memory and Huge pages. Also, the Pod requires an additional network interface pinned to the SR-IOV VFS provided by the node (k8s.v1.cni.cncf.io/networks: deploy-testpmd/sriov-network).
+Next, create the testPMD deployment object ([deployment-testpmd.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/cnf-cluster/deployment-testpmd.yaml)). Notice that the application requests a guaranteed amount of CPU, memory and huge pages. Also, the Pod requires an additional network interface pinned to the SR-IOV VFS provided by the node (k8s.v1.cni.cncf.io/networks: deploy-testpmd/sriov-network).
 
 >:warning: Replace the additional network annotation with the name of your SR-IOV network attach definition if you have a capable cluster.
 
-Observe that the pipeline is in charge of rolling out a new version of the application when a new image is successfully pushed to Quay.io:
+Whenever a new image is pushed to Quay.io, the pipeline executed in the Development cluster is in charge of rolling out a new version of the application in the CNF cluster. Consequently, we need to provide authentication and authorization to deploy it. A service account called _robot_ in `deploy-testpmd` namespace with the proper permissions must be created. These credentials are only used by the pipeline task to authenticate to the CNF cluster and roll out a new version of testPMD.
 
 ```sh
-$ oc set triggers deployment/testpmd
-NAME                       TYPE    VALUE  AUTO
-deployment/testpmd  config         true
-```
-
-Since the pipeline's deployment task running in the Development cluster must connect to the CNF cluster, we need to provide authentication and authorization to deploy a new version of the application. A service account called _robot_ in `deploy-testpmd` namespace with the proper permissions must be created. These credentials are only used by the pipeline task to authenticate to CNF cluster and roll out a new version of testPMD.
-
-```
 $ oc create sa robot -n deploy-testpmd
 serviceaccount/robot created
 
 $ oc adm policy add-role-to-user admin -z robot
 clusterrole.rbac.authorization.k8s.io/admin added: "robot"
 ```
-Robot's credentials must be extracted. They will be needed when creating the pipeline.
+Robot's credentials must be extracted as they will be needed when creating the pipeline.
 
 ```sh
 $ export TOKEN=$(oc serviceaccounts get-token robot -n deploy-testpmd)
 ```
 
-### Development cluster configuration
+## Development cluster configuration
 
-This cluster is in charge of running the DPDK application pipeline. It can be seen as an OpenShift cluster focused on development, _a central point where all the different teams within a company create and configure their automated builds, deployments or pipelines in general_.
+This cluster is in charge of running the CNF application pipeline. It can be seen as an OpenShift cluster focused on development, _a central point where all the different teams within a company create and configure their automated builds, deployments or pipelines in general_.
 
-OpenShift Pipelines Operator can be easily installed from the OperatorHub. So we can start by creating a project called _dpdk-build-testpmd_ where the Continuous Deployment (CD) pipeline will be executed.
+OpenShift Pipelines Operator can be easily installed from the OperatorHub. So we can start by creating a project called `dpdk-build-testpmd` where the continuous deployment (CD) pipeline will be executed.
 
 ```sh
 $ oc new-project dpdk-build-testpmd
@@ -151,7 +143,7 @@ Finally, link the secret with the **pipeline** service account, which, by defaul
 $ oc secret link pipeline secret-registries
 ```
 
-## OpenShift Pipelines (Tekton)
+# OpenShift Pipelines (Tekton)
 
 OpenShift Pipelines is a powerful tool for building continuous delivery pipelines using modern infrastructure. The core component runs as a controller in OpenShift. It registers several custom resource definitions (CRDs) which represent the basic Tekton objects with the Kubernetes API server, so the cluster knows to delegate requests containing those objects to Tekton. These primitives are fundamental to the way Tekton works, once you have OpenShift Pipelines Operator installed you can list them:
 
@@ -178,7 +170,7 @@ Currently, there is an ongoing effort migrating [Tekton from `v1alpha1` to Tekto
 >:exclamation: The pipeline we are about to create makes use of the `v1beta1` Tekton API guaranteeing long term compliance.
 
 
-### Pipeline Tasks
+## Pipeline Tasks
 
 A `Task` is a collection of Steps that you define in a specific order as part of your pipeline. OpenShift comes by default with a bunch of `ClusterTasks` predefined, which are similar to Tekton `Tasks` but with a cluster scope. Below it is the list of them currently shipped:
 
@@ -215,9 +207,9 @@ clustertask.tekton.dev/s2i-v0-11-3
 clustertask.tekton.dev/tkn
 ```
 
-To start our pipeline, first, we need to pull the testPMD source code from the Git repository. Towards that goal, the [git-clone ClusterTask](https://github.com/tektoncd/catalog/tree/master/task/git-clone/0.1) comes very handy. A copy of the git-clone task shipped with OpenShift Pipelines is available at [pipeline-clustertask-git-clone.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/beta/resources/tekton-pipeline/pipeline-clustertask-git-clone.yaml).
+To start our pipeline, first, we need to pull the testPMD source code from the Git repository. Towards that goal, the [git-clone ClusterTask](https://github.com/tektoncd/catalog/tree/master/task/git-clone/0.1) comes very handy. A copy is available at [pipeline-clustertask-git-clone.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/tekton-pipeline/pipeline-clustertask-git-clone.yaml).
 
-**Git-clone** `ClusterTask` requires a [Workspace](https://github.com/tektoncd/pipeline/blob/master/docs/workspaces.md) backed up by a Persistent Volume (PV) so that the code pulled is stored and then shared among all the tasks that are part of the pipeline. Therefore, a Persistent Volume Claim (PVC) like [pipeline-pvc-testpmd.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/beta/resources/tekton-pipeline/pipeline-pvc-testpmd.yaml) must be created in the _dpdk-build-testpmd_ namespace.
+**Git-clone** `ClusterTask` requires a [Workspace](https://github.com/tektoncd/pipeline/blob/master/docs/workspaces.md) backed up by a Persistent Volume (PV) so that the code pulled is stored and then shared among all the tasks that are part of the pipeline. As a result, a Persistent Volume Claim (PVC) similar to [pipeline-pvc-testpmd.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/beta/resources/tekton-pipeline/pipeline-pvc-testpmd.yaml) must be created in the _dpdk-build-testpmd_ namespace.
 
 ```yaml
 apiVersion: v1
@@ -234,30 +226,30 @@ spec:
       storage: 1Gi
 ```
 
-Next, a **Source to Image** ([S2i](https://github.com/tektoncd/catalog/tree/master/task/s2i/0.1)) task is needed to build testPMD application along with DPDK builder image. Although there is a S2i `ClusterTask` already available in OpenShift, it makes use of `PipelineResources`. An adapted version of the shipped S2i called _s2i-cnf_ is created and available in [pipeline-task-s2i.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/beta/resources/tekton-pipeline/pipeline-task-s2i.yaml). This new task basically uses `Workspaces` instead of resources.
+Next, a **Source to Image** ([S2I](https://github.com/tektoncd/catalog/tree/master/task/s2i/0.1)) task is needed to build testPMD application along with DPDK builder image. Although there is a S2I `ClusterTask` already available in OpenShift, it makes use of `PipelineResources`. An adapted version of the shipped S2I called _s2i-cnf_ is created and available in [pipeline-task-s2i.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/tekton-pipeline/pipeline-task-s2i.yaml). This new task uses `Workspaces` instead of resources.
 
 ```sh
 $ oc create -f pipeline-task-s2i.yaml -n dpdk-build-testpmd
 task.tekton.dev/s2i-cnf created
 ```
 
-At this point, a testPMD container image should be already created and uploaded to the Quay.io container image registry. Then, it is time to set up a task that permits authenticate into the CNF cluster and roll out a new version of the application. Previously to Beta release, a `cluster PipelineResource` was probably the best option. But, now a `kubeconfig-creator Task` is recommended in the [Migrating v1alpha1 to v1beta1](https://github.com/tektoncd/pipeline/blob/master/docs/migrating-v1alpha1-to-v1beta1.md#replacing-a-cluster-resource) documentation. It fundamentally uses the shared `Workspace` to save a valid Kubeconfig file that can be leveraged by the following task to trigger a deployment of testPMD in the CNF cluster.
+At this point, a testPMD container image should be already created and uploaded to the Quay.io container image registry. Then, it is time to set up a task that permits authenticate into the CNF cluster and roll out a new version of the application. Previously to Beta release, a _cluster type_ `PipelineResource` was probably the best option. But, now a _kubeconfig-creator_ `Task` is recommended in the [Migrating v1alpha1 to v1beta1](https://github.com/tektoncd/pipeline/blob/master/docs/migrating-v1alpha1-to-v1beta1.md#replacing-a-cluster-resource) documentation. It fundamentally uses the shared `Workspace` to save a valid Kubeconfig file that can be leveraged by the following task to log into the CNF cluster.
 
 ```sh
 $ oc create -f pipeline-task-kubeconfig-creator.yaml -n dpdk-build-testpmd 
 task.tekton.dev/kubeconfig-creator created
 ```
 
-The last task, defined in [pipeline-task-oc-client-remote.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/beta/resources/tekton-pipeline/pipeline-task-oc-client-remote.yaml) deploys the new image into the CNF cluster. It is also a custom task based in the [openshift client](https://github.com/tektoncd/catalog/tree/master/task/openshift-client/0.1) `ClusterTask` available in OpenShift. It consumes the Kubeconfig file created previously in the shared `Workspace` to authenticate to the remote cluster as the robot service account and launch a new `Deployment`.
+The last task, defined in [pipeline-task-oc-client-remote.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/tekton-pipeline/pipeline-task-oc-client-remote.yaml) deploys the new image into the CNF cluster. It is also a custom task based in the [openshift client](https://github.com/tektoncd/catalog/tree/master/task/openshift-client/0.1) `ClusterTask` available in OpenShift. It consumes the Kubeconfig file created previously in the shared `Workspace` to authenticate to the remote cluster as the robot service account and force a new `Deployment`.
 
 ```sh
 $ oc create -f  pipeline-task-oc-client-remote.yaml -n dpdk-build-testpmd
 task.tekton.dev/openshift-client-cluster created
 ```
 
-Once all the `Tasks` are imported, it is time to create the `Pipeline` object that includes all of them in a single workflow. As they can be reviewed in [pipeline-dpdk-testpmd.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/beta/resources/tekton-pipeline/pipeline-dpdk-testpmd.yaml), the four `Tasks` already detailed are referenced in the _spec_ field. 
+Once all the `Tasks` are imported, it is time to create the `Pipeline` object that includes all of them in a single workflow. As they can be reviewed in [pipeline-dpdk-testpmd.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/tekton-pipeline/pipeline-dpdk-testpmd.yaml), the four `Tasks` already detailed are referenced in the _spec_ field. 
 
-> :exclamation: A considerable amount of parameters are defined inside the tasks, making the pipeline more re-usable. For instance, to build completely different applications or execute distinct remote commands.
+> :exclamation: A considerable amount of parameters are defined inside the tasks, making the pipeline more re-usable. It makes possible to build completely different applications or execute specific oc commands.
 
 ```yaml
 apiVersion: tekton.dev/v1beta1
@@ -406,12 +398,12 @@ Namespace:   dpdk-build-testpmd
 ⛩  PipelineRuns
 ```
 
-> :exclamation: Notice that there are no resources (`PipelineResources`) created in our pipeline. So, their functionality has been migrated to Tasks and we are good to go with the Tekton Pipelines Beta release.
+> :exclamation: Notice that there are no _resources_ (`PipelineResources`) in our pipeline. So, their functionality has been migrated to `Tasks` and we are in line with Tekton Pipelines Beta recommendations.
 
 
-### Adding Triggers to the Pipeline
+## Adding Triggers to the Pipeline
 
-At this point, you may be able to create a `PipelineRun` ([pipelinerun-dpdk-testpmd.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/beta/resources/tekton-pipeline/pipelinerun-dpdk-testpmd.yaml)) and execute the workflow defined. 
+At this point, you may be able to create a `PipelineRun` ([pipelinerun-dpdk-testpmd.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/tekton-pipeline/pipelinerun-dpdk-testpmd.yaml)) and execute the workflow defined. 
 
 >:exclamation: Replace the values of the params with your environment configuration. Remember to include robot's authentication [TOKEN](#cnf-cluster-configuration).
 
@@ -441,15 +433,16 @@ Waiting for logs to be available...
 [build-testpmd : build] Copying blob sha256:a757589d62994e495d9a19fd0568eef9d50beabd29b25f5ef85566c7f03a6333
 ...
 ```
+
 However, we want to provide a real continuous deployment pipeline. Then, as explained in [Scenario](#scenario), the pipeline must be automatically launched every time a new code is pushed to the master branch of testPMD Git repository. We assume that pushing code to the master branch means: it is ready for production. 
 
 [Tekton Triggers](https://github.com/tektoncd/triggers) provides a mechanism to declaratively create `PipelineRuns` based on external events. They implement a system for creating Kubernetes resources in response to external events, mostly in the form of **webhooks**. These events allow users to create resource templates that get instantiated when an event is received. Additionally, fields from event payloads can be injected into these resource templates as runtime information. 
 
-The Tekton Triggers project defines three main concepts (as Kubernetes CRDs). These are `TriggerBindings`, `TriggerTemplates`, and `EventListeners`.
+The Tekton Triggers project defines three main concepts (as Kubernetes CRDs). These are `TriggerBindings`, `TriggerTemplates`, and `EventListeners`. Below image, from [2](#References), depicts the interaction among them:
 
 ![Tekton triggers CRDs](./content/Tekton_triggers_resources.png)
 
-A `TriggerTemplate` defines a Template for how a Pipeline should be executed in reaction to events. When an event is received by our EventListener, the TriggerTemplate is rendered by extracting parameter values (eg: Git repository URL, revision, etc.) from the event payload. This will result in the creation of a new `PipelineRun`. As you can see in the [TriggerTemplate file](https://github.com/alosadagrande/tekton-dpdk/blob/beta/resources/tekton-triggers/triggertemplate.yaml), all the parameters defined in the Pipeline([pipeline-dpdk-testpmd.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/beta/resources/tekton-pipeline/pipeline-dpdk-testpmd.yaml)) are populated either from the event payload or from the `TriggerBinding` file.
+A `TriggerTemplate` defines a template for how a pipeline should be executed in reaction to events. When an event is received by our EventListener, the `TriggerTemplate` is rendered by extracting parameter values (eg: Git repository URL, revision, etc.) from the event payload. This will result in the creation of a new `PipelineRun`. As you can see in the [TriggerTemplate file](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/tekton-triggers/triggertemplate.yaml), all the parameters defined in the Pipeline ([pipeline-dpdk-testpmd.yaml](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/tekton-pipeline/pipeline-dpdk-testpmd.yaml)) are populated either from the event payload or from the `TriggerBinding` file. Create the object into the _dpdk-build-testpmd_:
 
 ```yaml
 apiVersion: triggers.tekton.dev/v1alpha1
@@ -528,7 +521,7 @@ spec:
             claimName: pvc-testpmd
 ```
 
-Next, create the [TriggerBinding file](https://github.com/alosadagrande/tekton-dpdk/blob/beta/resources/tekton-triggers/triggerbinding.yaml) which specifies the values to use for your TriggerTemplate’s parameters. The _GIT_URL_ and _REVISION_ parameters are especially important because they are extracted from the pull request event body. See [GitHub pull request event documentation](https://developer.github.com/v3/activity/events/types/#pullrequestevent) for more information.
+Next, apply the [TriggerBinding file](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/tekton-triggers/triggerbinding.yaml) which specifies the values to use for your TriggerTemplate’s parameters. The _GIT_URL_ and _REVISION_ parameters are especially important because they are extracted from the pull request event body. See [GitHub pull request event documentation](https://developer.github.com/v3/activity/events/types/#pullrequestevent) for more information.
 
 The rest of the parameters in the `TriggerBinding` have hardcoded values because they do not come from the pull request event; these values are specific to the OpenShift environment.
 
@@ -571,7 +564,7 @@ spec:
     value: 'replace -f https://raw.githubusercontent.com/alosadagrande/tekton-dpdk/beta/resources/cnf-cluster/deployment-testpmd.yaml --force'
 ```
 
-The [EventListener file](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/tekton-triggers/eventlistener.yaml) defines a list of triggers. Each trigger pairs a `TriggerTemplate` with a number of `TriggerBindings`. 
+The [EventListener file](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/tekton-triggers/eventlistener.yaml) defines a list of triggers. Each trigger pairs a `TriggerTemplate` with a number of `TriggerBindings`. Apply the file in _dpdk-build-testpmd_ namespace:
 
 ```yaml
 apiVersion: triggers.tekton.dev/v1alpha1
@@ -588,20 +581,24 @@ spec:
     - name: testpmd-build-and-deploy
 ```
 
-Finally, create the proper RBAC configuration so that the `EventListener` Pod can read all Tekton Triggers resources so that it can know what to do with each event. The [RBAC](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/triggers/rbac.yaml) file assigns the Role to the `pipeline` service account.
+Finally, create the proper RBAC configuration so that the `EventListener` Pod can read all Tekton Triggers resources so that it can know what to do with each event. The [RBAC](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/tekton-triggers/rbac.yaml) file assigns the Role to the `pipeline` service account.
 
-A [Route](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/triggers/route.yaml) must be exposed as well, so that the remote Git repository can send events to our Development OpenShift cluster.
+A [Route](https://github.com/alosadagrande/tekton-dpdk/blob/master/resources/tekton-triggers/route.yaml) must be exposed as well, so that the remote Git repository can send events to our Development OpenShift cluster. Apply it in the proper namespace.
 
 ## Validation
 
-Lastly, validate the CD pipeline. In the [video recording](https://www.youtube.com/watch?v=cx34XeLUJV8), you can see that every change pushed into the master branch of testPMD repository will fire our workflow:
-
+Lastly, we must validate the CD pipeline. In this [video](https://www.youtube.com/watch?v=cx34XeLUJV8), it is shown how every change pushed into the master branch of testPMD repository starts our workflow. The pipeline finishes deploying automatically the last version of our CNF application into the remote cluster.
 
 [![Verification of the pipeline](http://img.youtube.com/vi/cx34XeLUJV8/0.jpg)](https://www.youtube.com/watch?v=cx34XeLUJV8 "Building Cloud-native Network Functions with OpenShift Pipelines")
 
 ## Summary
 
-In this blog post it has been exposed how to leverage a  Cloud Native CI/CD OpenShift Pipelines to create an automated Continuous Deployment pipeline to deploy a high performant application that Containerized Network Functions such as DPDK, Multus and SR-IOV.
+This article outlined how to build CNF applications leveraging cloud-native CI/CD tools like OpenShift Pipelines. The intent of this blog post was to demonstrate that applications that have high-performance networking requirements can be **deployed and built natively** in OpenShift Container Platform. 
+
+OpenShift is moving fast to welcome on board deterministic and low latency applications, which are usual in the telco space. Technologies like SR-IOV, Multus, DPDK, FPGA, GPU, huge pages, CPU isolation, NUMA affinity, Real-time kernel... are already supported or they are in the process of being supported, currently as Developer or Technology Preview. Stay tuned for the forthcoming OpenShift releases!
+
+On the other hand, if your workloads are not that specific in terms of network performance, OpenShift Pipelines based on Tekton can still be very helpful as a framework for creating your automated pipelines on top of your OpenShift cluster. In this article, we have built a CNF application using a DPDK base image, however, it will not be difficult to adapt the same pipeline to build a completely different application based on a different technology. Notice that the `Pipeline` and `TriggerTemplate` files defined were highly parametrized to facilitate the reusability. Now, it is your turn to adjust the ideas explained here to your special needs.  
+
 
 ## References
 
