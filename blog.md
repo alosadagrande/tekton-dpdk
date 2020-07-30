@@ -22,7 +22,7 @@ In the OpenShift blog, we already presented and ["demystified" Multus](https://w
 
 The third component we already mentioned is [DPDK](https://www.dpdk.org/). DPDK is a set of libraries and drivers for Linux and BSD built to accelerate packet processing workloads designed to run on x86, POWER and ARM processors. DPDK offers offloading TCP packet processing from the operating system Kernel space to process them in the User space to obtain a high performant and deterministic system.
 
-DPDK libraries offer to free up the Kernel space from interrupts by processing the work in User space instead. This is possible thanks to the DPDK libraries and the DPDK poll mode driver (PMD). This driver is responsible for the communication between the application and network card, listening in a loop avoiding as much as possible interrupts while forwarding packets. The diagram from [1](#References) streamlines the idea:
+DPDK libraries offer to free up the Kernel space from interrupts by processing the work in User space instead. This is possible thanks to the DPDK libraries and the DPDK poll mode driver (PMD). This driver is responsible for the communication between the application and network card, listening in a loop avoiding as much as possible interrupts while forwarding packets. The diagram from [[1]](#References) streamlines the idea:
 
 ![Networking using DPDK libraries](./content/kernel-user-space.png)
 
@@ -48,7 +48,6 @@ The pipeline will be in charge of:
 * Building the application using [Source-to-Image (S2I)](https://github.com/openshift/source-to-image) strategy.
 * Pushing the resulting image to a container public registry such as [Quay.io](https://quay.io). 
 * Automatically deploying the new version of the application into the proper project running in another cluster, the CNF OpenShift cluster.
-
 
 # Environment
 
